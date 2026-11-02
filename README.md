@@ -4,6 +4,10 @@
 
 ## Docker, PostgreSQL және деплой (Assignment 3)
 
+Тікелей сайт (Render, тегін жоспар; 15 минут тыныштықтан кейін алғашқы ашылу ~1 минут):
+**https://maxball-3kst.onrender.com** · демо аккаунттар: `demo1@maxball.example` (қолданушы),
+`demo6@maxball.example` (басшылық), құпиясөз `Maxball2026`.
+
 Бір Docker образы статикалық фронтенд пен API-ды бірге береді, деректер PostgreSQL-де сақталады:
 
 ```sh
