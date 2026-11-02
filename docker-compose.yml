@@ -1,0 +1,50 @@
+# Local / CI / Railway stack (#32): the application image plus PostgreSQL.
+#   docker compose up --build -d --wait   ->  http://localhost:3000
+# The app waits for a healthy database; both keep data in named volumes.
+# MAXBALL_DEMO=1 runs the self-contained mode (local accounts, files on the
+# volume, published demo logins) instead of Supabase Auth/Storage.
+name: maxball
+
+services:
+  db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: maxball
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-maxball}
+      POSTGRES_DB: maxball
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U maxball -d maxball"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+
+  app:
+    image: ${MAXBALL_IMAGE:-ghcr.io/maksatworkspace-sudo/studylist:latest}
+    build:
+      context: .
+      args:
+        APP_VERSION: ${APP_VERSION:-local}
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      MAXBALL_ADAPTER: postgres
+      DATABASE_URL: postgres://maxball:${POSTGRES_PASSWORD:-maxball}@db:5432/maxball
+      MAXBALL_DEMO: "1"
+      # Local default only; real deployments inject a random 64-char secret.
+      APP_SECRET: ${APP_SECRET:-local-compose-only-secret-0123456789abcdef0123456789}
+      APP_URL: ${APP_URL:-http://localhost:3000}
+      # 1 = production limits; CI raises it for the end-to-end suite only.
+      MAXBALL_RATE_LIMIT_SCALE: ${MAXBALL_RATE_LIMIT_SCALE:-1}
+    ports:
+      - "${APP_PORT:-3000}:3000"
+    volumes:
+      - uploads:/app/.local
+
+volumes:
+  pgdata:
+  uploads:

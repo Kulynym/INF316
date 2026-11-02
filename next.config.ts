@@ -2,7 +2,10 @@ import type { NextConfig } from "next";
 
 const config: NextConfig = {
   devIndicators: false,
-  serverExternalPackages: ["pg", "nodemailer"],
+  // Self-contained server for the single Docker image (#31): pages are
+  // prerendered static assets served by the same Node process as /api/*.
+  output: "standalone",
+  serverExternalPackages: ["pg", "nodemailer", "typeorm", "better-sqlite3"],
   async headers() {
     return [
       {

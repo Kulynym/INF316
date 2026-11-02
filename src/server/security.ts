@@ -81,6 +81,15 @@ export async function decrypt(value: string) {
  * Fixed-window limiter in the rate_limits table with the same reset
  * semantics as the original SQL upsert. Production limits are unchanged.
  */
+/**
+ * Test-only multiplier for every rate limit (default 1 = production
+ * behaviour). The CI compose stack raises it so the full end-to-end suite,
+ * which logs the same demo accounts in many times, is not throttled.
+ */
+function rateLimitScale() {
+  const scale = Number(process.env.MAXBALL_RATE_LIMIT_SCALE || 1);
+  return Number.isFinite(scale) && scale >= 1 ? scale : 1;
+}
 export async function rateLimit(
   repo: Store,
   id: string,
@@ -107,7 +116,7 @@ export async function rateLimit(
     count = Number(existing.count) + 1;
     await repo.update("rate_limits", id, { count });
   }
-  if (count > max)
+  if (count > max * rateLimitScale())
     throw new AppError(
       "Әрекет тым жиі қайталанды. Біраздан кейін қайталап көріңіз.",
       429,
