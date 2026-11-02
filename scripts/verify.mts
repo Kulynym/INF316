@@ -12,8 +12,8 @@
 // Isolation guarantees (AC1/AC4):
 // - The app runs from a staging copy under the repository's gitignored
 //   .local/verify/ directory; only an allowlist of sources is copied. The
-//   staging cwd makes the baseline dev backend (PGlite at cwd/.local/postgres
-//   and uploads at cwd/.local/uploads) land inside the staging copy, so the
+//   staging cwd makes SQLite at cwd/.local/maxball.sqlite and uploads at
+//   cwd/.local/uploads land inside the staging copy, so the
 //   runner can never read or write the repository's .local/postgres or the
 //   port-3000 preview. Module resolution anchors at the repository lockfile,
 //   so no node_modules copy or symlink is needed. .env* files are never
@@ -25,15 +25,14 @@
 // - Only processes spawned by this runner are tracked and terminated, and only
 //   staging/temp directories created by this runner are removed.
 //
-// Adapter contract (AC6): MAXBALL_ADAPTER=dev-pglite (baseline, default),
-// memory or sqlite. The memory/sqlite values activate when the corresponding
-// backend lands its env contract; sqlite additionally requires
-// MAXBALL_SQLITE_PATH pointing outside the repository. The runner refuses
-// incomplete adapter configuration instead of silently falling back.
+// Adapter contract (AC6): MAXBALL_ADAPTER=sqlite (default) or memory.
+// SQLite defaults to the staging-local file; an explicit MAXBALL_SQLITE_PATH
+// must point outside the repository. Memory is process-local and cannot prove
+// restart persistence. The runner rejects unsupported adapter configuration.
 //
-// The browser phase requires @playwright/test; until its dependency ownership
-// transfers it is reported as PENDING (a loud, explicit non-result). Under
-// --strict, or in CI once activated, PENDING is a failure, never a skip.
+// The browser phase uses the installed @playwright/test dependency. Missing
+// browser capability is reported as PENDING (an explicit non-result); under
+// --strict, including CI, PENDING is a failure, never a skip.
 
 import { spawn, type ChildProcess } from "node:child_process";
 import { createRequire } from "node:module";

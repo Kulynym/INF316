@@ -33,7 +33,7 @@ weakened; no forwarded-IP tricks are needed with this isolation.
   gitignored `.local/verify/` directory: only `src/`, `public/`, `supabase/`,
   `package.json`, `next.config.ts`, `postcss.config.mjs`, `tsconfig.json` are
   copied. Because the app resolves its local data at `cwd/.local/...`, the
-  baseline dev backend lands **inside the staging copy** — the repository's
+  SQLite file and uploads land **inside the staging copy** — the repository's
   `.local/postgres`, prior uploads and the port-3000 preview are never read
   or written. Module resolution anchors at the repository lockfile, so the
   staging copy needs no `node_modules` of its own.

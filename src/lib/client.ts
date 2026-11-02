@@ -21,7 +21,6 @@ export async function send(
   return appService().send(action as ActionName, input as ActionInputs[ActionName]);
 }
 export const uploadFile = (file: File, progress?: Progress) => appService().upload(file, progress);
-export const temporaryPreview = () => appService().mode === "mock";
 function saveDownload(file: Download) {
   const url = URL.createObjectURL(file.blob);
   const link = document.createElement("a");

@@ -66,7 +66,7 @@
 
 ## Логотип
 
-Файл: [assets/maxball-logo.png](assets/maxball-logo.png).
+Файл: [maxball-logo.png](../public/maxball-logo.png).
 
 Тәсіл: кіріктірілген `imagegen`, мөлдір фон. Жаңа M және жұлдыз белгісі бренд атауымен бірге қолдануға арналған. Бұл веб-сайт коды емес, бастапқы визуалдық актив.
 

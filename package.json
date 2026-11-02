@@ -13,7 +13,6 @@
     "test:sqlite": "TEST_ADAPTER=sqlite vitest run tests/store.test.ts tests/domain.test.ts tests/jobs.test.ts"
   },
   "dependencies": {
-    "@electric-sql/pglite": "0.5.10",
     "@supabase/supabase-js": "2.118.0",
     "better-sqlite3": "^12.4.1",
     "exceljs": "4.4.0",
