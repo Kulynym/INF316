@@ -93,6 +93,8 @@ jobs:
       APP_VERSION: ${{ github.sha }}
       MAXBALL_IMAGE: maxball-ci:${{ github.sha }}
       MAXBALL_RATE_LIMIT_SCALE: "50"
+      # Production mode checks Origin against APP_URL: use the test origin.
+      APP_URL: http://127.0.0.1:3000
       TEST_URL: http://127.0.0.1:3000
     steps:
       - uses: actions/checkout@v7.0.1
