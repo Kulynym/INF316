@@ -23,7 +23,7 @@ This block is written and re-added by `next dev` — verify at `node_modules/nex
 - Use TypeORM EntitySchema + better-sqlite3; a true memory repository is required.
   No SQL rewrite shim. Never erase .local/postgres, old uploads or synced sources/.
 - Deployment is authorized only as described in [_docs/deploy.md](_docs/deploy.md)
-  (Assignment 3: Docker Compose, Railway, AWS CloudFormation on the free plan).
+  (Assignment 3: Docker Compose, Render, AWS CloudFormation on the free plan).
   Never commit keys, databases, personal owner details or private
   reference-account screenshots. Stage only owned paths in shared work.
 - For UI read [_docs/design-system.md](_docs/design-system.md); before tests read

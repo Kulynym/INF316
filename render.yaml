@@ -1,0 +1,35 @@
+# Render Blueprint (#34): the docker-compose.yml stack mapped service by
+# service, as Render does not run compose files itself:
+#   compose "app" -> web service from the GHCR image built by CI
+#   compose "db"  -> Render Postgres (DATABASE_URL over the private network)
+# Free plans only. CI redeploys each green commit through the deploy hook
+# with the commit's image tag (see .github/workflows/ci.yml, deploy-render).
+services:
+  - type: web
+    name: maxball
+    runtime: image
+    image:
+      url: ghcr.io/maksatworkspace-sudo/studylist:latest
+    plan: free
+    region: frankfurt
+    healthCheckPath: /api/health
+    envVars:
+      - key: MAXBALL_ADAPTER
+        value: postgres
+      - key: DATABASE_URL
+        fromDatabase:
+          name: maxball-db
+          property: connectionString
+      - key: MAXBALL_DEMO
+        value: "1"
+      - key: APP_SECRET
+        generateValue: true
+      # APP_URL falls back to Render's RENDER_EXTERNAL_URL (Dockerfile CMD).
+
+databases:
+  - name: maxball-db
+    plan: free
+    region: frankfurt
+    databaseName: maxball
+    user: maxball
+    postgresMajorVersion: "16"

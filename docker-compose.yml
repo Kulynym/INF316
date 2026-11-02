@@ -1,4 +1,4 @@
-# Local / CI / Railway stack (#32): the application image plus PostgreSQL.
+# Local / CI stack (#32), mirrored on Render by render.yaml (#34): the application image plus PostgreSQL.
 #   docker compose up --build -d --wait   ->  http://localhost:3000
 # The app waits for a healthy database; both keep data in named volumes.
 # MAXBALL_DEMO=1 runs the self-contained mode (local accounts, files on the

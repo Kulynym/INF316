@@ -38,6 +38,6 @@ This file is not a second backlog; consult the issue for current readiness.
 - [#31 Single Dockerfile](https://github.com/maksatworkspace-sudo/studylist/issues/31)
 - [#32 Docker Compose](https://github.com/maksatworkspace-sudo/studylist/issues/32)
 - [#33 CI/CD](https://github.com/maksatworkspace-sudo/studylist/issues/33)
-- [#34 Railway](https://github.com/maksatworkspace-sudo/studylist/issues/34)
+- [#34 Render (Railway trials paused)](https://github.com/maksatworkspace-sudo/studylist/issues/34)
 - [#35 AWS CloudFormation](https://github.com/maksatworkspace-sudo/studylist/issues/35)
 - [#36-#54 Per-feature Playwright e2e tests](https://github.com/maksatworkspace-sudo/studylist/issues?q=label%3Ae2e-test)

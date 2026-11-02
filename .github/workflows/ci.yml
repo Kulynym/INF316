@@ -3,7 +3,7 @@
 # runner, and the Docker Compose stack with HTTP integration + Playwright
 # end-to-end tests (one spec per feature, issues labelled e2e-test).
 # Every green commit on main publishes the image to GHCR and re-deploys
-# Railway (#34) and AWS (#35); a deploy job is skipped until its
+# Render (#34) and AWS (#35); a deploy job is skipped until its
 # repository variables exist, so forks and fresh clones stay green.
 name: CI/CD
 
@@ -167,31 +167,33 @@ jobs:
             ${{ env.IMAGE }}:latest
             ${{ env.IMAGE }}:${{ github.sha }}
 
-  deploy-railway:
-    name: Deploy to Railway
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main' && vars.RAILWAY_APP_URL != ''
+  deploy-render:
+    name: Deploy to Render (Blueprint mirroring docker-compose.yml)
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main' && vars.RENDER_APP_URL != ''
     needs: publish
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 20
     environment:
-      name: railway
-      url: ${{ vars.RAILWAY_APP_URL }}
+      name: render
+      url: ${{ vars.RENDER_APP_URL }}
     steps:
-      - name: Redeploy the app service with the new image
+      - name: Deploy this commit's image through the deploy hook
         env:
-          RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
+          HOOK: ${{ secrets.RENDER_DEPLOY_HOOK_URL }}
         run: |
-          npm install -g @railway/cli
-          railway redeploy --service "${{ vars.RAILWAY_SERVICE || 'app' }}" --yes
+          image=$(jq -rn --arg v "ghcr.io/${GITHUB_REPOSITORY}:${GITHUB_SHA}" '$v|@uri')
+          curl -fsS -X POST "${HOOK}&imgURL=${image}" -o /dev/null -w "deploy hook HTTP %{http_code}\n"
       - name: Smoke test the deployed version
+        env:
+          APP: ${{ vars.RENDER_APP_URL }}
         run: |
-          for i in $(seq 1 40); do
-            body=$(curl -fsS "${{ vars.RAILWAY_APP_URL }}/api/health" || true)
+          for i in $(seq 1 60); do
+            body=$(curl -fsS "$APP/api/health" || true)
             echo "$body"
-            if echo "$body" | grep -q '"version":"${{ github.sha }}"'; then exit 0; fi
+            if echo "$body" | grep -q "\"version\":\"${GITHUB_SHA}\""; then exit 0; fi
             sleep 15
           done
-          echo "Railway did not report version ${{ github.sha }}" >&2
+          echo "Render did not report version ${GITHUB_SHA}" >&2
           exit 1
 
   deploy-aws:

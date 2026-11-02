@@ -11,7 +11,7 @@ docker compose up --build -d --wait   # http://localhost:3000 (app + PostgreSQL)
 ```
 
 CI/CD (`.github/workflows/ci.yml`) әр commit сайын unit, SQLite/PostgreSQL, интеграциялық және
-Playwright e2e тесттерін іске қосады, ал `main`-де образды GHCR-ге жариялап, Railway мен AWS-ті
+Playwright e2e тесттерін іске қосады, ал `main`-де образды GHCR-ге жариялап, Render мен AWS-ті
 (CloudFormation) қайта деплой етеді. Толық нұсқаулық: [_docs/deploy.md](_docs/deploy.md).
 Issues: [`deployment`](https://github.com/maksatworkspace-sudo/studylist/issues?q=label%3Adeployment),
 [`e2e-test`](https://github.com/maksatworkspace-sudo/studylist/issues?q=label%3Ae2e-test).
