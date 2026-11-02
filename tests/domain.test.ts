@@ -235,10 +235,15 @@ describe("roles, state transitions and visibility", () => {
       input({ title: "Шекті күн сынағы" }),
     )) as Created;
     // A deterministic future Almaty day that no seeded post can occupy.
-    const tomorrow = new Date(Date.now() + 86_400_000).toISOString().slice(0, 10);
-    const after = new Date(Date.now() + 2 * 86_400_000)
-      .toISOString()
-      .slice(0, 10);
+    // Derive it from the Almaty date, not the UTC date: between 18:00 and
+    // 24:00 UTC the UTC "tomorrow" is already Almaty today, where posts
+    // created earlier in this file would be counted.
+    const almatyDayAfter = (days: number) =>
+      new Date(Date.now() + 6 * 3_600_000 + days * 86_400_000)
+        .toISOString()
+        .slice(0, 10);
+    const tomorrow = almatyDayAfter(1);
+    const after = almatyDayAfter(2);
     // Almaty tomorrow 00:30 == UTC previous day 18:30.
     const almatyEarly = new Date(`${tomorrow}T00:30:00+06:00`).toISOString();
     await db.update("feedback", created.id, { created_at: almatyEarly });
