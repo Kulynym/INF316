@@ -17,7 +17,7 @@ import {
   type Table,
 } from "./types";
 
-type ColumnKind = "text" | "integer" | "boolean" | "real";
+export type ColumnKind = "text" | "integer" | "boolean" | "real";
 
 /** Frozen v1 columns: later entity changes must not rewrite historical DDL. */
 const tablesV1: Record<Table, Record<string, ColumnKind>> = {
@@ -46,7 +46,7 @@ const tablesV1: Record<Table, Record<string, ColumnKind>> = {
   moderation_log: { id: "text", moderator_id: "text", action: "text", target_type: "text", target_id: "text", target_feedback_id: "text", target_number: "integer", reason: "text", prev_state: "text", new_state: "text", created_at: "text" },
 };
 
-const tables: Record<Table, Record<string, ColumnKind>> = {
+export const tables: Record<Table, Record<string, ColumnKind>> = {
   ...tablesV1,
   guest_grants: { ...tablesV1.guest_grants, explicit_unlock: "boolean" },
   comments: { ...tablesV1.comments, hidden: "boolean", hidden_reason: "text" },
@@ -59,7 +59,7 @@ const SQLITE_TYPE: Record<ColumnKind, string> = {
   real: "REAL",
 };
 
-function entities(): EntitySchema[] {
+export function entities(): EntitySchema[] {
   return Object.entries(tables).map(([name, columns]) => {
     const definition: Record<string, EntitySchemaColumnOptions> = {};
     for (const [column, kind] of Object.entries(columns)) {
@@ -187,6 +187,10 @@ function pkOf(table: Table, row: Row): Row {
   return object;
 }
 
+/**
+ * TypeORM-backed Store shared by the SQLite and PostgreSQL adapters (#30).
+ * Only nextNumber issues raw SQL, and that query is portable across both.
+ */
 export class SqliteStore implements Store {
   constructor(
     private root: DataSource,
@@ -317,8 +321,15 @@ export class SqliteStore implements Store {
   }
 
   transaction<T>(work: (tx: Store) => Promise<T>): Promise<T> {
-    return this.root.transaction(async (manager) =>
-      work(new SqliteStore(this.root, manager)),
-    );
+    return this.root.transaction(async (manager) => {
+      // better-sqlite3 serializes writers itself; PostgreSQL needs an explicit
+      // transaction-scoped lock to keep the Store's serialized contract.
+      if (this.root.options.type === "postgres")
+        await manager.query("SELECT pg_advisory_xact_lock(727274)");
+      return work(new SqliteStore(this.root, manager));
+    });
   }
 }
+
+/** Dialect-neutral alias used by the PostgreSQL adapter. */
+export { SqliteStore as TypeormStore };

@@ -41,6 +41,7 @@ describe("openapi.yml document structure", () => {
       "/api/files/{id}",
       "/api/export",
       "/api/jobs",
+      "/api/health",
     ])
       expect(Object.keys(spec.paths)).toContain(path);
     expect(spec.paths["/api/files/{id}"].get).toBeTruthy();
@@ -56,8 +57,9 @@ describe("openapi.yml document structure", () => {
 
   it("every operation defines error responses, not just happy paths", () => {
     // /api/state GET takes no body and /api/jobs only authenticates a bearer
-    // token, so neither can meaningfully return 400; everything else can.
-    const noBody = ["/api/state", "/api/jobs"];
+    // token, and /api/health takes no input, so none can meaningfully return
+    // 400; everything else can.
+    const noBody = ["/api/state", "/api/jobs", "/api/health"];
     for (const [path, operations] of Object.entries(spec.paths))
       for (const [method, operation] of Object.entries(operations)) {
         if (!("responses" in operation)) continue;

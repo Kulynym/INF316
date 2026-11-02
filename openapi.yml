@@ -169,6 +169,33 @@ paths:
                     items: { type: string }
         "401": { $ref: "#/components/responses/Unauthorized" }
         "500": { $ref: "#/components/responses/ServerError" }
+  /api/health:
+    get:
+      operationId: health
+      summary: Liveness and database round trip for health checks (#30).
+      responses:
+        "200":
+          description: The application and its database answer.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [status, adapter]
+                properties:
+                  status: { type: string, enum: [ok] }
+                  adapter: { type: string, enum: [memory, sqlite, postgres] }
+                  version: { type: string }
+        "500": { $ref: "#/components/responses/ServerError" }
+        "503":
+          description: The database is unreachable.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [status]
+                properties:
+                  status: { type: string, enum: [error] }
+                  adapter: { type: string }
 components:
   securitySchemes:
     sessionCookie:

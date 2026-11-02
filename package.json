@@ -10,7 +10,10 @@
     "test": "vitest run",
     "test:http": "TEST_URL=http://127.0.0.1:3000 vitest run tests/http.test.ts",
     "setup": "node scripts/setup.mts",
-    "test:sqlite": "TEST_ADAPTER=sqlite vitest run tests/store.test.ts tests/domain.test.ts tests/jobs.test.ts"
+    "test:sqlite": "TEST_ADAPTER=sqlite vitest run tests/store.test.ts tests/domain.test.ts tests/jobs.test.ts",
+    "test:postgres": "TEST_ADAPTER=postgres vitest run tests/store.test.ts tests/domain.test.ts tests/jobs.test.ts",
+    "migrate:sqlite-to-postgres": "node scripts/migrate-sqlite-to-postgres.mjs",
+    "e2e": "playwright test --project=desktop-1280x720 --project=mobile-390x844 --project=narrow-320x780"
   },
   "dependencies": {
     "@supabase/supabase-js": "2.118.0",
