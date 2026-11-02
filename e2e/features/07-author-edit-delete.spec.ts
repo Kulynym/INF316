@@ -23,6 +23,8 @@ test.describe("#42 author edit and delete", () => {
     detail = await openPost(page, edited);
     await detail.getByRole("button", { name: "Жазбаны өшіру" }).click();
     await page.getByRole("dialog").getByRole("button", { name: "Өшіру", exact: true }).click();
+    // Wait for the delete to finish (the post dialog closes) before reloading.
+    await expect(page.getByRole("dialog", { name: /Өтініш №/ })).toHaveCount(0);
     await searchFeed(page, edited);
     await expect(page.getByRole("heading", { name: "Жазба табылмады" })).toBeVisible();
   });

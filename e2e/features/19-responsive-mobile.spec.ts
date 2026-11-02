@@ -16,7 +16,6 @@ for (const viewport of [{ width: 390, height: 844 }, { width: 320, height: 720 }
 
       await page.getByRole("button", { name: "Мәзір" }).click();
       await expect(page.getByRole("navigation").getByRole("button", { name: /^Оқытушылар/ })).toBeVisible();
-      await page.getByRole("button", { name: "Мәзірді жабу" }).first().click();
 
       const detail = await openPost(page, "Орталықтағы қолдау ерекше ұнайды");
       const box = await detail.boundingBox();
