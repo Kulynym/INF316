@@ -35,6 +35,9 @@ function browserChannel(): string | undefined {
   return "chrome";
 }
 const channel = process.env.PLAYWRIGHT_CHANNEL || browserChannel();
+// E2E_FEATURES=0 (set by scripts/verify.mts) leaves out the per-feature specs,
+// which run against the Docker Compose stack in CI (issues #36-#54).
+const featureSpecs = process.env.E2E_FEATURES === "0" ? [/features\//] : [];
 
 export default defineConfig({
   testDir: "e2e",
@@ -62,7 +65,7 @@ export default defineConfig({
     {
       name: "desktop-1280x720",
       use: { viewport: { width: 1280, height: 720 } },
-      testIgnore: /responsive\.spec\.ts|mock-mode\.spec\.ts/,
+      testIgnore: [/responsive\.spec\.ts|mock-mode\.spec\.ts/, ...featureSpecs],
     },
     {
       name: "mobile-390x844",

@@ -528,7 +528,9 @@ async function runE2EPhase(
       {
         name: "playwright",
         cwd: repoRoot,
-        env: { ...buildChildEnv(parentEnv, server.baseUrl, mode), TEST_URL: server.baseUrl },
+        // The per-feature specs (e2e/features, Assignment 3) target the Docker
+        // Compose stack in the CI "stack" job; this runner keeps its own suite.
+        env: { ...buildChildEnv(parentEnv, server.baseUrl, mode), TEST_URL: server.baseUrl, E2E_FEATURES: "0" },
       },
     );
     const exit = await new Promise<number>((resolve) =>
