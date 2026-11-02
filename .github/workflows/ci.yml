@@ -1,0 +1,235 @@
+# CI/CD (#33): every push and pull request runs the backend/frontend unit
+# and contract suites on memory, SQLite and PostgreSQL, the isolated browser
+# runner, and the Docker Compose stack with HTTP integration + Playwright
+# end-to-end tests (one spec per feature, issues labelled e2e-test).
+# Every green commit on main publishes the image to GHCR and re-deploys
+# Railway (#34) and AWS (#35); a deploy job is skipped until its
+# repository variables exist, so forks and fresh clones stay green.
+name: CI/CD
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
+
+permissions:
+  contents: read
+
+env:
+  IMAGE: ghcr.io/${{ github.repository }}
+
+jobs:
+  unit:
+    name: Unit, contract and database tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: maxball
+          POSTGRES_PASSWORD: maxball
+          POSTGRES_DB: maxball_test
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U maxball -d maxball_test"
+          --health-interval 5s --health-timeout 5s --health-retries 20
+    steps:
+      - uses: actions/checkout@v7.0.1
+      - uses: actions/setup-node@v7.1.0
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - run: npm run typecheck
+      - name: Unit + contract tests (memory repository)
+        run: npm test
+      - name: Store/domain/jobs suites on SQLite
+        run: npm run test:sqlite
+      - name: Store/domain/jobs suites on PostgreSQL
+        run: npm run test:postgres
+        env:
+          TEST_DATABASE_URL: postgres://maxball:maxball@localhost:5432/maxball_test
+      - name: Frontend production build
+        run: npm run build
+
+  browser:
+    name: Isolated browser runner (SQLite + mock mode)
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v7.0.1
+      - uses: actions/setup-node@v7.1.0
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - run: npx playwright install --with-deps chromium
+      - name: Isolated strict verification (http + browser + sqlite restart)
+        run: node scripts/verify.mts --strict
+      - name: Isolated mock-mode browser verification (#5 zero API traffic)
+        run: node scripts/verify.mts --phase e2e --mode mock --strict
+      - name: Upload verification artifacts
+        if: failure()
+        uses: actions/upload-artifact@v5
+        with:
+          name: verify-artifacts
+          if-no-files-found: ignore
+          path: |
+            test-results/
+            playwright-report/
+
+  stack:
+    name: Integration + E2E on Docker Compose (app + PostgreSQL)
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    env:
+      APP_PORT: "3000"
+      APP_VERSION: ${{ github.sha }}
+      MAXBALL_IMAGE: maxball-ci:${{ github.sha }}
+      MAXBALL_RATE_LIMIT_SCALE: "50"
+      TEST_URL: http://127.0.0.1:3000
+    steps:
+      - uses: actions/checkout@v7.0.1
+      - uses: actions/setup-node@v7.1.0
+        with:
+          node-version: 24
+          cache: npm
+      - name: Build the single application image
+        run: docker compose build
+      - name: Start the stack and wait for health checks
+        run: docker compose up -d --wait --wait-timeout 180
+      - name: Health check reports PostgreSQL
+        run: |
+          curl -fsS "$TEST_URL/api/health" | tee health.json
+          grep -q '"adapter":"postgres"' health.json
+      - run: npm ci
+      - name: HTTP integration tests against the stack
+        run: npx vitest run tests/http.test.ts
+      - run: npx playwright install --with-deps chromium
+      - name: Playwright end-to-end tests (all features)
+        run: npm run e2e
+      - name: Data survives an application restart
+        run: |
+          before=$(docker compose exec -T db psql -U maxball -d maxball -tAc "select count(*) from feedback")
+          docker compose restart app
+          docker compose up -d --wait --wait-timeout 120
+          after=$(docker compose exec -T db psql -U maxball -d maxball -tAc "select count(*) from feedback")
+          echo "feedback rows before=$before after=$after"
+          test "$before" = "$after"
+          curl -fsS "$TEST_URL/api/health"
+      - name: Compose logs on failure
+        if: failure()
+        run: docker compose logs --no-color --timestamps
+      - name: Upload Playwright report
+        if: always()
+        uses: actions/upload-artifact@v5
+        with:
+          name: playwright-report
+          retention-days: 7
+          if-no-files-found: ignore
+          path: |
+            playwright-report/
+            test-results/
+      - name: Tear down
+        if: always()
+        run: docker compose down -v
+
+  publish:
+    name: Publish image to GHCR
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    needs: [unit, browser, stack]
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@v7.0.1
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - uses: docker/build-push-action@v6
+        with:
+          context: .
+          push: true
+          build-args: APP_VERSION=${{ github.sha }}
+          tags: |
+            ${{ env.IMAGE }}:latest
+            ${{ env.IMAGE }}:${{ github.sha }}
+
+  deploy-railway:
+    name: Deploy to Railway
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main' && vars.RAILWAY_APP_URL != ''
+    needs: publish
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    environment:
+      name: railway
+      url: ${{ vars.RAILWAY_APP_URL }}
+    steps:
+      - name: Redeploy the app service with the new image
+        env:
+          RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
+        run: |
+          npm install -g @railway/cli
+          railway redeploy --service "${{ vars.RAILWAY_SERVICE || 'app' }}" --yes
+      - name: Smoke test the deployed version
+        run: |
+          for i in $(seq 1 40); do
+            body=$(curl -fsS "${{ vars.RAILWAY_APP_URL }}/api/health" || true)
+            echo "$body"
+            if echo "$body" | grep -q '"version":"${{ github.sha }}"'; then exit 0; fi
+            sleep 15
+          done
+          echo "Railway did not report version ${{ github.sha }}" >&2
+          exit 1
+
+  deploy-aws:
+    name: Deploy to AWS (CloudFormation stack)
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main' && vars.AWS_DEPLOY_ROLE_ARN != ''
+    needs: publish
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    environment:
+      name: aws
+      url: ${{ vars.AWS_APP_URL }}
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: aws-actions/configure-aws-credentials@v5
+        with:
+          role-to-assume: ${{ vars.AWS_DEPLOY_ROLE_ARN }}
+          aws-region: ${{ vars.AWS_REGION }}
+      - name: Pull and restart the stack on the instance through SSM
+        env:
+          INSTANCE: ${{ vars.AWS_INSTANCE_ID }}
+        run: |
+          id=$(aws ssm send-command \
+            --instance-ids "$INSTANCE" \
+            --document-name AWS-RunShellScript \
+            --comment "deploy ${GITHUB_SHA}" \
+            --parameters "commands=[\"/opt/maxball/deploy.sh ${GITHUB_SHA}\"]" \
+            --query Command.CommandId --output text)
+          aws ssm wait command-executed --command-id "$id" --instance-id "$INSTANCE" || true
+          aws ssm get-command-invocation --command-id "$id" --instance-id "$INSTANCE" \
+            --query '[Status,StandardOutputContent,StandardErrorContent]' --output text
+          test "$(aws ssm get-command-invocation --command-id "$id" --instance-id "$INSTANCE" --query Status --output text)" = Success
+      - name: Smoke test the deployed version
+        run: |
+          for i in $(seq 1 30); do
+            body=$(curl -fsS "${{ vars.AWS_APP_URL }}/api/health" || true)
+            echo "$body"
+            if echo "$body" | grep -q "\"version\":\"${GITHUB_SHA}\""; then exit 0; fi
+            sleep 10
+          done
+          echo "AWS did not report version ${GITHUB_SHA}" >&2
+          exit 1

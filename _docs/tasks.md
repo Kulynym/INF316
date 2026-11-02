@@ -31,3 +31,13 @@ This file is not a second backlog; consult the issue for current readiness.
 - [#1 Mandatory live email/AI verification](https://github.com/maksatworkspace-sudo/studylist/issues/1)
 - [#2 SQLite-compatible hosting/publication approval](https://github.com/maksatworkspace-sudo/studylist/issues/2)
 - [#3 Measured scale/operations extensions](https://github.com/maksatworkspace-sudo/studylist/issues/3)
+
+## Assignment 3: Test, Containerise and Deploy
+
+- [#30 SQLite -> PostgreSQL](https://github.com/maksatworkspace-sudo/studylist/issues/30)
+- [#31 Single Dockerfile](https://github.com/maksatworkspace-sudo/studylist/issues/31)
+- [#32 Docker Compose](https://github.com/maksatworkspace-sudo/studylist/issues/32)
+- [#33 CI/CD](https://github.com/maksatworkspace-sudo/studylist/issues/33)
+- [#34 Railway](https://github.com/maksatworkspace-sudo/studylist/issues/34)
+- [#35 AWS CloudFormation](https://github.com/maksatworkspace-sudo/studylist/issues/35)
+- [#36-#54 Per-feature Playwright e2e tests](https://github.com/maksatworkspace-sudo/studylist/issues?q=label%3Ae2e-test)

@@ -2,6 +2,20 @@
 
 Қазақша ашық кері байланыс алаңы. Next.js, React, TypeScript; деректер TypeORM (EntitySchema) арқылы better-sqlite3 файлдық SQLite-інде сақталады (`.local/maxball.sqlite`), алмастырылатын нақты жадтауыш репозиторий де бар (`MAXBALL_ADAPTER=memory`). API келісімі [openapi.yml](openapi.yml) файлында; алғашқы интерфейс mockService арқылы жұмыс істейді (`NEXT_PUBLIC_SERVICE_MODE=mock`). Жария орта шығу қақпасы әлі ашылмаған (issues #1/#2).
 
+## Docker, PostgreSQL және деплой (Assignment 3)
+
+Бір Docker образы статикалық фронтенд пен API-ды бірге береді, деректер PostgreSQL-де сақталады:
+
+```sh
+docker compose up --build -d --wait   # http://localhost:3000 (app + PostgreSQL)
+```
+
+CI/CD (`.github/workflows/ci.yml`) әр commit сайын unit, SQLite/PostgreSQL, интеграциялық және
+Playwright e2e тесттерін іске қосады, ал `main`-де образды GHCR-ге жариялап, Railway мен AWS-ті
+(CloudFormation) қайта деплой етеді. Толық нұсқаулық: [_docs/deploy.md](_docs/deploy.md).
+Issues: [`deployment`](https://github.com/maksatworkspace-sudo/studylist/issues?q=label%3Adeployment),
+[`e2e-test`](https://github.com/maksatworkspace-sudo/studylist/issues?q=label%3Ae2e-test).
+
 ## Жергілікті Іске Қосу
 
 Node.js 24 және npm қажет. Docker міндетті емес.
@@ -65,5 +79,6 @@ npm run test:http
 - [Архитектура](_docs/architecture.md)
 - [Бекітілген шешімдер](_docs/decisions-2026-10-19.md)
 - [Тексеру және қалған іске қосу жұмыстары](_docs/verification.md)
+- [Контейнер, PostgreSQL, CI/CD және деплой](_docs/deploy.md)
 
 Логотип пен ғарыш фоны осы жобаға арнайы жасалған bitmap активтер. TENEASY тек визуалдық бағыт ретінде қолданылды; оның коды, жеке деректері және LMS функциялары көшірілген жоқ. ExcelJS ішіндегі UUID тәуелділігі қауіпсіз `11.1.1` нұсқасына бекітілген; export тексеруі workbook-ты қайта ашады.

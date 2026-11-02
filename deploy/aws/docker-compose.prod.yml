@@ -1,0 +1,62 @@
+# Production stack on the EC2 instance (#35). Caddy terminates HTTPS with an
+# automatic Let's Encrypt certificate for <ip>.sslip.io and proxies to the app;
+# PostgreSQL is reachable only on the internal compose network.
+# Values come from /opt/maxball/.env (generated on the instance).
+name: maxball
+
+services:
+  caddy:
+    image: caddy:2.10-alpine
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"
+    environment:
+      SITE_ADDRESS: ${SITE_ADDRESS}
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      - app
+
+  app:
+    image: ghcr.io/${GITHUB_REPOSITORY}:${APP_TAG:-latest}
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      MAXBALL_ADAPTER: postgres
+      DATABASE_URL: postgres://maxball:${POSTGRES_PASSWORD}@db:5432/maxball
+      DATABASE_POOL_SIZE: "5"
+      MAXBALL_DEMO: "1"
+      APP_SECRET: ${APP_SECRET}
+      APP_URL: https://${SITE_ADDRESS}
+    volumes:
+      - uploads:/app/.local
+    mem_limit: 512m
+
+  db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: maxball
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: maxball
+    command: ["postgres", "-c", "shared_buffers=64MB", "-c", "max_connections=30"]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U maxball -d maxball"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    mem_limit: 256m
+
+volumes:
+  pgdata:
+  uploads:
+  caddy_data:
+  caddy_config:

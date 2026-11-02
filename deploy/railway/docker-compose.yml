@@ -1,0 +1,33 @@
+# Railway import file (#34). Drag this file onto an empty Railway project
+# canvas: Railway creates the "app" and "db" services with their volumes.
+# Railway does not build from compose, so "app" runs the image that CI
+# publishes to GHCR on every green commit; the deploy-railway CI job then
+# redeploys it. Replace the two CHANGE_ME values in Railway's Variables tab.
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: maxball
+      POSTGRES_PASSWORD: CHANGE_ME_DB_PASSWORD
+      POSTGRES_DB: maxball
+      PGDATA: /var/lib/postgresql/data/pgdata
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+
+  app:
+    image: ghcr.io/maksatworkspace-sudo/studylist:latest
+    environment:
+      PORT: "3000"
+      MAXBALL_ADAPTER: postgres
+      DATABASE_URL: postgres://maxball:CHANGE_ME_DB_PASSWORD@db.railway.internal:5432/maxball
+      MAXBALL_DEMO: "1"
+      APP_SECRET: CHANGE_ME_64_RANDOM_CHARACTERS
+      APP_URL: https://${{RAILWAY_PUBLIC_DOMAIN}}
+    ports:
+      - "3000:3000"
+    volumes:
+      - uploads:/app/.local
+
+volumes:
+  pgdata:
+  uploads:

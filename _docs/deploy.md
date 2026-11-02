@@ -1,0 +1,120 @@
+# Test, Containerise and Deploy (Assignment 3)
+
+Date: 2026-11-03. Backlog: GitHub issues [#30–#35](https://github.com/maksatworkspace-sudo/studylist/issues?q=label%3Adeployment)
+(label `deployment`) and [#36–#54](https://github.com/maksatworkspace-sudo/studylist/issues?q=label%3Ae2e-test)
+(label `e2e-test`, one Playwright spec per feature). Method follows
+[Deploy a full-stack app with AI coding](https://aishippingblog.com/p/deploy-a-full-stack-app-with-ai-coding).
+
+## Architecture
+
+```text
+             ┌──────────── one Docker image (Dockerfile, #31) ────────────┐
+browser ───▶ │ Next.js standalone server: prerendered static pages + /api │ ───▶ PostgreSQL 16 (#30)
+             └────────────────────────────────────────────────────────────┘
+local / CI / Railway: docker-compose.yml (app + db, #32)
+AWS: CloudFormation stack → EC2 → Caddy (HTTPS) + app + db (#35)
+```
+
+- **Frontend as static + backend, one image.** `next build` with `output: "standalone"`
+  prerenders every page to static HTML/JS/CSS (`○ (Static)` in the build output); the same
+  Node process serves `/_next/static`, the pages and the `/api/*` backend.
+- **SQLite → PostgreSQL.** The TypeORM EntitySchema store now runs on SQLite *and*
+  PostgreSQL (`src/server/store/postgres.ts`). Domain code is unchanged. The same
+  store/domain/jobs suites run on memory, SQLite and PostgreSQL in CI.
+- **Self-contained mode.** Containers set `MAXBALL_DEMO=1`: local accounts, files on the
+  `/app/.local` volume and the published demo logins instead of Supabase Auth/Storage
+  (the Supabase path stays available for a later real launch, issues #1/#2).
+
+Demo accounts (password `Maxball2026`): `demo1@maxball.example` (user),
+`demo4@maxball.example` (teacher), `demo6@maxball.example` (leadership).
+
+## Run locally with Docker Compose
+
+```sh
+docker compose up --build -d --wait   # http://localhost:3000
+curl localhost:3000/api/health        # {"status":"ok","adapter":"postgres",...}
+docker compose down                   # keep data; add -v to delete volumes
+```
+
+## Migrate existing SQLite data to PostgreSQL
+
+The app creates the PostgreSQL schema on first start (`store_migrations` v1). Then copy the
+SQLite file in one transaction; row counts are verified before COMMIT:
+
+```sh
+DATABASE_URL=postgres://maxball:maxball@localhost:5432/maxball \
+  npm run migrate:sqlite-to-postgres -- .local/maxball.sqlite --replace
+```
+
+Inside the container: `docker compose exec app node scripts/migrate-sqlite-to-postgres.mjs /app/.local/maxball.sqlite --replace`.
+Without `--replace` the script refuses to overwrite non-empty tables.
+
+## Tests
+
+| Layer | Command | Where |
+| --- | --- | --- |
+| Unit + contract (memory) | `npm test` | CI `unit` |
+| Store/domain/jobs on SQLite | `npm run test:sqlite` | CI `unit` |
+| Store/domain/jobs on PostgreSQL | `TEST_DATABASE_URL=… npm run test:postgres` | CI `unit` (postgres service) |
+| Frontend build + typecheck | `npm run typecheck && npm run build` | CI `unit` |
+| Isolated browser runner (SQLite, mock mode) | `node scripts/verify.mts --strict` | CI `browser` |
+| HTTP integration against the stack | `TEST_URL=… npx vitest run tests/http.test.ts` | CI `stack` |
+| Playwright e2e, one spec per feature | `TEST_URL=http://127.0.0.1:3000 npm run e2e` | CI `stack` |
+
+Feature specs live in `e2e/features/NN-*.spec.ts`; each header names its `e2e-test` issue.
+The CI stack sets `MAXBALL_RATE_LIMIT_SCALE=50` because the suite logs the same demo
+accounts in dozens of times; production keeps the default `1`.
+
+## CI/CD (`.github/workflows/ci.yml`, #33)
+
+`unit` · `browser` · `stack` run on every push and pull request. On `main`, when all pass:
+`publish` pushes `ghcr.io/maksatworkspace-sudo/studylist:{latest,<sha>}`, then
+`deploy-railway` and `deploy-aws` redeploy and smoke-test `/api/health` until it reports
+the new commit SHA. Each deploy job is skipped until its repository variables exist.
+
+**Owner, once:** GitHub → Packages → `studylist` → Package settings → Change visibility →
+**Public**, so Railway and EC2 can pull the image without registry credentials.
+
+## Railway (Docker Compose, #34)
+
+1. Create a Railway account (trial credit; do not add a paid plan).
+2. New Project → Empty project → drag `deploy/railway/docker-compose.yml` onto the canvas.
+3. In both services' Variables replace `CHANGE_ME_DB_PASSWORD` (same value) and in `app`
+   set `APP_SECRET` to 64 random characters (`openssl rand -hex 32`).
+4. `app` → Settings → Networking → Generate Domain (port 3000). Open `/api/health`.
+5. Project Settings → Tokens → create a project token. In GitHub → Settings → Secrets and
+   variables → Actions: secret `RAILWAY_TOKEN`; variables `RAILWAY_APP_URL`
+   (`https://….up.railway.app`) and `RAILWAY_SERVICE` (`app`).
+
+## AWS with CloudFormation (#35)
+
+Free-plan guardrails: only `t3.micro`/`t3.small`, ≤ 30 GiB gp3, no NAT gateway, no load
+balancer, no RDS; a monthly AWS Budget e-mails at 50 % actual / 100 % forecast. Never
+upgrade the account to a paid plan. The Elastic IP is the one billable item (public IPv4),
+covered by the free credits.
+
+```sh
+aws cloudformation deploy \
+  --stack-name maxball \
+  --template-file deploy/aws/maxball-stack.yaml \
+  --capabilities CAPABILITY_IAM \
+  --parameter-overrides BudgetEmail=you@example.com
+aws cloudformation describe-stacks --stack-name maxball --query 'Stacks[0].Outputs'
+```
+
+Set the outputs as GitHub repository variables: `AWS_DEPLOY_ROLE_ARN`, `AWS_INSTANCE_ID`,
+`AWS_REGION`, `AWS_APP_URL`. Deploys use GitHub OIDC: no AWS keys are stored in GitHub. The
+role may only run `AWS-RunShellScript` on this one instance. Bootstrap log:
+`/var/log/maxball-bootstrap.log` (Session Manager, no SSH port is open).
+
+Remove everything:
+
+```sh
+aws cloudformation delete-stack --stack-name maxball
+aws cloudformation wait stack-delete-complete --stack-name maxball
+```
+
+## Not covered here
+
+Managed database/backups (RDS), multiple instances, a custom domain and real e-mail/AI
+providers. Pre-existing storage defects stay tracked in #28 and #29.

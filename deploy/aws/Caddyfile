@@ -1,0 +1,7 @@
+# HTTPS for the AWS instance (#35): Let's Encrypt certificate for the
+# instance's <ip>.sslip.io name, HTTP redirects to HTTPS automatically.
+{$SITE_ADDRESS} {
+	encode zstd gzip
+	header Strict-Transport-Security "max-age=31536000"
+	reverse_proxy app:3000
+}

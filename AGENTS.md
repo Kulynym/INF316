@@ -22,8 +22,10 @@ This block is written and re-added by `next dev` — verify at `node_modules/nex
   checkpoints. Wait for predecessor PASS. No invented earlier process history.
 - Use TypeORM EntitySchema + better-sqlite3; a true memory repository is required.
   No SQL rewrite shim. Never erase .local/postgres, old uploads or synced sources/.
-- No deployment now. Never commit keys, databases, personal owner details or
-  private reference-account screenshots. Stage only owned paths in shared work.
+- Deployment is authorized only as described in [_docs/deploy.md](_docs/deploy.md)
+  (Assignment 3: Docker Compose, Railway, AWS CloudFormation on the free plan).
+  Never commit keys, databases, personal owner details or private
+  reference-account screenshots. Stage only owned paths in shared work.
 - For UI read [_docs/design-system.md](_docs/design-system.md); before tests read
   [_docs/testing-guidelines.md](_docs/testing-guidelines.md). Bugs follow actual
   repro -> user-test-bug -> PM grooming -> QA cases -> engineer -> independent QA.
@@ -34,6 +36,9 @@ This block is written and re-added by `next dev` — verify at `node_modules/nex
 - `npm run dev -- --port 3001`: start a separate local preview if 3000 is occupied.
 - `npm run typecheck`, `npm test`, `npm run build`: current baseline checks.
 - `npm run test:http`: current live tests hardcode 3000; not an isolated runner.
+- `npm run test:postgres`: store/domain/jobs suites on PostgreSQL (`TEST_DATABASE_URL`).
+- `docker compose up --build -d --wait`, then `TEST_URL=http://127.0.0.1:3000 npm run e2e`:
+  per-feature Playwright specs (`e2e/features`, issues labelled `e2e-test`).
 - `npm audit --omit=dev`: dependency audit, report limitations honestly.
 
 Future contract/isolated browser runner commands must be documented when actually
