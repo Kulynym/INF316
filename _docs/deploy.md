@@ -69,8 +69,9 @@ accounts in dozens of times; production keeps the default `1`.
 
 `unit` · `browser` · `stack` run on every push and pull request. On `main`, when all pass:
 `publish` pushes `ghcr.io/maksatworkspace-sudo/studylist:{latest,<sha>}`, then
-`deploy-render` and `deploy-aws` redeploy and smoke-test `/api/health` until it reports
-the new commit SHA. Each deploy job is skipped until its repository variables exist.
+`deploy-render` redeploys Render through its hook; the AWS instance pulls the new image
+itself and `deploy-aws` waits for it. Both smoke-test `/api/health` until it reports the
+new commit SHA. Each deploy job is skipped until its repository variables exist.
 
 **Owner, once:** GitHub → Packages → `studylist` → Package settings → Change visibility →
 **Public**, so Render and EC2 can pull the image without registry credentials.
@@ -106,26 +107,46 @@ From then on `deploy-render` posts the hook with `imgURL=…:<commit sha>` and w
 
 ## AWS with CloudFormation (#35)
 
+[`deploy/aws/maxball-stack.yaml`](../deploy/aws/maxball-stack.yaml) creates one EC2
+instance (security group 80/443 only, IMDSv2, encrypted gp3), an Elastic IP and a monthly
+AWS Budget. UserData installs Docker, generates the database password and app secret on
+the instance and starts [`docker-compose.prod.yml`](../deploy/aws/docker-compose.prod.yml):
+Caddy (automatic Let's Encrypt HTTPS on `<ip>.sslip.io`) → app image → PostgreSQL 16.
+
 Free-plan guardrails: only `t3.micro`/`t3.small`, ≤ 30 GiB gp3, no NAT gateway, no load
-balancer, no RDS; a monthly AWS Budget e-mails at 50 % actual / 100 % forecast. Never
-upgrade the account to a paid plan. The Elastic IP is the one billable item (public IPv4),
-covered by the free credits.
+balancer, no RDS; the Budget e-mails at 50 % actual / 100 % forecast. Never upgrade the
+account to a paid plan. The Elastic IP (public IPv4) is the one billable item, covered by
+the free credits.
+
+**Continuous deployment is pull-based.** A push deploy from GitHub would need AWS
+credentials, but the free plan denies `iam:CreateOpenIDConnectProvider` through a service
+control policy (stack event on 2026-11-03: "explicit deny in a service control policy"),
+and long-lived access keys in GitHub are worse practice. Instead
+`maxball-autodeploy.timer` runs [`autodeploy.sh`](../deploy/aws/autodeploy.sh) every
+minute: when `main`'s head has a published `ghcr.io/…:<sha>` image (CI publishes only
+after all tests pass) and it is not running yet, [`deploy.sh`](../deploy/aws/deploy.sh)
+fetches that commit's compose/Caddy files, pulls the image and waits for health. The CI
+job `deploy-aws` then waits until `AWS_APP_URL/api/health` reports the commit SHA.
+
+Owner steps, once (free-plan accounts are pinned to one region; use that region):
+1. CloudFormation → Create stack → With new resources → Upload `deploy/aws/maxball-stack.yaml`.
+2. Stack name `maxball`, set `BudgetEmail`, keep the defaults → Submit.
+3. When `CREATE_COMPLETE`, set the `AppUrl` output as the GitHub variable `AWS_APP_URL`.
+
+Equivalent CLI:
 
 ```sh
-aws cloudformation deploy \
-  --stack-name maxball \
+aws cloudformation deploy --stack-name maxball \
   --template-file deploy/aws/maxball-stack.yaml \
-  --capabilities CAPABILITY_IAM \
   --parameter-overrides BudgetEmail=you@example.com
 aws cloudformation describe-stacks --stack-name maxball --query 'Stacks[0].Outputs'
 ```
 
-Set the outputs as GitHub repository variables: `AWS_DEPLOY_ROLE_ARN`, `AWS_INSTANCE_ID`,
-`AWS_REGION`, `AWS_APP_URL`. Deploys use GitHub OIDC: no AWS keys are stored in GitHub. The
-role may only run `AWS-RunShellScript` on this one instance. Bootstrap log:
-`/var/log/maxball-bootstrap.log` (Session Manager, no SSH port is open).
+No SSH port is open. Bootstrap output is in `/var/log/maxball-bootstrap.log` and on the
+serial console (EC2 → instance → Monitor and troubleshoot → Get system log). With
+`EnableSessionManager=true` (needs IAM role rights) the instance also gets an SSM role.
 
-Remove everything:
+Remove everything: CloudFormation → `maxball` → Delete, or
 
 ```sh
 aws cloudformation delete-stack --stack-name maxball

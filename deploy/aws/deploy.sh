@@ -1,5 +1,5 @@
 #!/bin/bash
-# Runs on the EC2 instance (bootstrap and every CI deploy through SSM, #35).
+# Runs on the EC2 instance (#35): at bootstrap and from autodeploy.sh.
 #   /opt/maxball/deploy.sh <git-sha|latest>
 # Fetches the compose/Caddy files of that commit, points the app at the
 # matching GHCR image tag and restarts only what changed. Secrets stay in
@@ -12,7 +12,9 @@ source .env
 RAW="https://raw.githubusercontent.com/${GITHUB_REPOSITORY}/${REF}/deploy/aws"
 curl -fsSL "$RAW/docker-compose.prod.yml" -o docker-compose.yml
 curl -fsSL "$RAW/Caddyfile" -o Caddyfile
-curl -fsSL "$RAW/deploy.sh" -o deploy.sh.next && chmod 700 deploy.sh.next && mv deploy.sh.next deploy.sh
+for f in deploy.sh autodeploy.sh; do
+  curl -fsSL "$RAW/$f" -o "$f.next" && chmod 700 "$f.next" && mv "$f.next" "$f"
+done
 
 TOKEN=$(curl -fsS -X PUT http://169.254.169.254/latest/api/token -H "X-aws-ec2-metadata-token-ttl-seconds: 60")
 IP=$(curl -fsS -H "X-aws-ec2-metadata-token: $TOKEN" http://169.254.169.254/latest/meta-data/public-ipv4)

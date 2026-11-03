@@ -2,24 +2,17 @@ AWSTemplateFormatVersion: "2010-09-09"
 Description: >-
   MAXBALL EDTECH production stack (issue #35). One free-plan sized EC2
   instance runs Docker Compose: Caddy (automatic HTTPS on an sslip.io name),
-  the application image from GHCR and PostgreSQL. No SSH: operations and CI
-  deploys go through SSM, and GitHub Actions assumes a narrowly scoped role
-  through OIDC. A monthly AWS Budget e-mails the owner before credits burn.
+  the application image from GHCR and PostgreSQL. Continuous deployment is
+  pull-based: a systemd timer on the instance deploys every commit on main
+  whose image CI has published, so GitHub holds no AWS credentials (the AWS
+  free plan denies IAM OIDC providers). No SSH port is open. A monthly AWS
+  Budget e-mails the owner before credits burn.
 
 Parameters:
   GitHubRepository:
     Type: String
     Default: maksatworkspace-sudo/studylist
-    Description: owner/name of the repository allowed to deploy.
-  GitHubEnvironment:
-    Type: String
-    Default: aws
-    Description: GitHub Actions environment name used by the deploy job.
-  CreateGitHubOIDCProvider:
-    Type: String
-    AllowedValues: ["true", "false"]
-    Default: "true"
-    Description: Set to false if the account already has the token.actions.githubusercontent.com provider.
+    Description: owner/name of the public repository whose main branch is deployed.
   InstanceType:
     Type: String
     Default: t3.micro
@@ -40,23 +33,22 @@ Parameters:
     Default: 5
     MinValue: 1
     Description: Alert threshold for the monthly cost (paid from free credits).
+  EnableSessionManager:
+    Type: String
+    AllowedValues: ["true", "false"]
+    Default: "false"
+    Description: Attach an IAM role for SSM Session Manager shell access (needs IAM role creation rights).
   AmiId:
     Type: AWS::SSM::Parameter::Value<AWS::EC2::Image::Id>
     Default: /aws/service/ami-amazon-linux-latest/al2023-ami-kernel-default-x86_64
 
 Conditions:
-  CreateOIDC: !Equals [!Ref CreateGitHubOIDCProvider, "true"]
+  SessionManager: !Equals [!Ref EnableSessionManager, "true"]
 
 Resources:
-  GitHubOIDCProvider:
-    Type: AWS::IAM::OIDCProvider
-    Condition: CreateOIDC
-    Properties:
-      Url: https://token.actions.githubusercontent.com
-      ClientIdList: [sts.amazonaws.com]
-
   InstanceRole:
     Type: AWS::IAM::Role
+    Condition: SessionManager
     Properties:
       AssumeRolePolicyDocument:
         Version: "2012-10-17"
@@ -69,6 +61,7 @@ Resources:
 
   InstanceProfile:
     Type: AWS::IAM::InstanceProfile
+    Condition: SessionManager
     Properties:
       Roles: [!Ref InstanceRole]
 
@@ -86,7 +79,7 @@ Resources:
     Properties:
       ImageId: !Ref AmiId
       InstanceType: !Ref InstanceType
-      IamInstanceProfile: !Ref InstanceProfile
+      IamInstanceProfile: !If [SessionManager, !Ref InstanceProfile, !Ref AWS::NoValue]
       SecurityGroupIds: [!GetAtt WebSecurityGroup.GroupId]
       MetadataOptions:
         HttpTokens: required
@@ -107,8 +100,9 @@ Resources:
         Fn::Base64: !Sub |
           #!/bin/bash
           set -euxo pipefail
-          exec > >(tee -a /var/log/maxball-bootstrap.log) 2>&1
-          dnf install -y docker
+          # Also on the serial console: EC2 → Instance → Monitor → Get system log.
+          exec > >(tee -a /var/log/maxball-bootstrap.log /dev/console) 2>&1
+          dnf install -y docker git jq
           systemctl enable --now docker
           mkdir -p /usr/local/lib/docker/cli-plugins
           curl -fsSL https://github.com/docker/compose/releases/download/v2.39.4/docker-compose-linux-x86_64 \
@@ -131,11 +125,33 @@ Resources:
               echo "GITHUB_REPOSITORY=${GitHubRepository}"
             } > .env
           fi
-          curl -fsSL "https://raw.githubusercontent.com/${GitHubRepository}/main/deploy/aws/deploy.sh" -o deploy.sh
-          chmod 700 deploy.sh
+          for f in deploy.sh autodeploy.sh; do
+            curl -fsSL "https://raw.githubusercontent.com/${GitHubRepository}/main/deploy/aws/$f" -o "$f"
+            chmod 700 "$f"
+          done
           # Give the Elastic IP association a moment before Caddy requests a certificate.
           sleep 30
-          ./deploy.sh latest
+          ./deploy.sh latest || echo "first deploy failed; the timer retries"
+          # Pull-based CD: every minute, deploy main's newest published image.
+          cat > /etc/systemd/system/maxball-autodeploy.service <<'UNIT'
+          [Unit]
+          Description=Deploy the newest MAXBALL commit published by CI
+          After=docker.service network-online.target
+          [Service]
+          Type=oneshot
+          ExecStart=/opt/maxball/autodeploy.sh
+          UNIT
+          cat > /etc/systemd/system/maxball-autodeploy.timer <<'UNIT'
+          [Unit]
+          Description=Check for a new MAXBALL release every minute
+          [Timer]
+          OnBootSec=1min
+          OnUnitActiveSec=1min
+          [Install]
+          WantedBy=timers.target
+          UNIT
+          systemctl daemon-reload
+          systemctl enable --now maxball-autodeploy.timer
 
   ElasticIP:
     Type: AWS::EC2::EIP
@@ -144,41 +160,6 @@ Resources:
       InstanceId: !Ref Instance
       Tags:
         - { Key: Project, Value: maxball }
-
-  DeployRole:
-    Type: AWS::IAM::Role
-    Properties:
-      Description: Assumed by GitHub Actions (OIDC) to redeploy this one instance through SSM.
-      MaxSessionDuration: 3600
-      AssumeRolePolicyDocument:
-        Version: "2012-10-17"
-        Statement:
-          - Effect: Allow
-            Principal:
-              Federated: !If
-                - CreateOIDC
-                - !Ref GitHubOIDCProvider
-                - !Sub "arn:aws:iam::${AWS::AccountId}:oidc-provider/token.actions.githubusercontent.com"
-            Action: sts:AssumeRoleWithWebIdentity
-            Condition:
-              StringEquals:
-                token.actions.githubusercontent.com:aud: sts.amazonaws.com
-                token.actions.githubusercontent.com:sub: !Sub "repo:${GitHubRepository}:environment:${GitHubEnvironment}"
-      Policies:
-        - PolicyName: redeploy-one-instance
-          PolicyDocument:
-            Version: "2012-10-17"
-            Statement:
-              - Effect: Allow
-                Action: ssm:SendCommand
-                Resource:
-                  - !Sub "arn:aws:ec2:${AWS::Region}:${AWS::AccountId}:instance/${Instance}"
-                  - !Sub "arn:aws:ssm:${AWS::Region}::document/AWS-RunShellScript"
-              - Effect: Allow
-                Action:
-                  - ssm:GetCommandInvocation
-                  - ssm:ListCommandInvocations
-                Resource: "*"
 
   MonthlyBudget:
     Type: AWS::Budgets::Budget
@@ -213,11 +194,8 @@ Outputs:
       - "https://${Dashed}.sslip.io"
       - Dashed: !Join ["-", !Split [".", !Ref ElasticIP]]
   InstanceId:
-    Description: Set as the AWS_INSTANCE_ID repository variable.
+    Description: The EC2 instance running the stack.
     Value: !Ref Instance
-  DeployRoleArn:
-    Description: Set as the AWS_DEPLOY_ROLE_ARN repository variable.
-    Value: !GetAtt DeployRole.Arn
   Region:
-    Description: Set as the AWS_REGION repository variable.
+    Description: Region of the stack.
     Value: !Ref AWS::Region
