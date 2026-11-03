@@ -22,5 +22,16 @@ for (const viewport of [{ width: 390, height: 844 }, { width: 320, height: 720 }
       expect(box!.width).toBeLessThanOrEqual(viewport.width);
       expect(await overflow()).toBeLessThanOrEqual(1);
     });
+
+    test("Escape closes the navigation drawer and returns focus", async ({ page }) => {
+      await page.goto("/");
+      await expect(page.getByRole("article").first()).toBeVisible();
+      const menu = page.getByRole("button", { name: "Мәзір", exact: true });
+      await menu.click();
+      await expect(menu).toHaveAttribute("aria-expanded", "true");
+      await page.keyboard.press("Escape");
+      await expect(menu).toHaveAttribute("aria-expanded", "false");
+      await expect(menu).toBeFocused();
+    });
   });
 }

@@ -1,6 +1,6 @@
 // E2E 05 — Accounts: login, logout and failed login (issue #40).
 import { expect, test } from "@playwright/test";
-import { ACCOUNTS, isolateClient, loginAs, logout } from "../support";
+import { ACCOUNTS, PASSWORD, isolateClient, loginAs, logout } from "../support";
 
 isolateClient(5);
 
@@ -23,5 +23,19 @@ test.describe("#40 login and logout", () => {
     await expect(dialog.locator(".error, [role=alert]").filter({ hasText: /./ }).first()).toBeVisible();
     await expect(dialog.getByRole("textbox", { name: "Email" })).toHaveValue(ACCOUNTS.user);
     await expect(page.getByRole("button", { name: "Шығу" })).toHaveCount(0);
+  });
+
+  test("a demo account chip fills the form and the person signs in", async ({ page }) => {
+    await page.goto("/");
+    await page.getByRole("button", { name: "Кіру", exact: true }).click();
+    const dialog = page.getByRole("dialog");
+    await dialog.getByRole("group", { name: "Демо аккаунттар" }).getByRole("button", { name: "Оқытушы" }).click();
+    await expect(dialog.getByRole("textbox", { name: "Email" })).toHaveValue(ACCOUNTS.teacher);
+    await expect(dialog.getByRole("textbox", { name: "Құпиясөз" })).toHaveValue(PASSWORD);
+    // Filling never signs in by itself: the person still confirms.
+    await expect(page.getByRole("button", { name: "Шығу" })).toHaveCount(0);
+    await dialog.getByRole("button", { name: "Кіру", exact: true }).click();
+    await expect(page.getByRole("button", { name: /Дана Әлім Оқытушы/ })).toBeVisible();
+    await logout(page);
   });
 });

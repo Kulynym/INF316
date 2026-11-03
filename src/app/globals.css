@@ -460,7 +460,9 @@ progress::-moz-progress-bar {
 }
 .overview-strip {
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
+  /* One column per tile: the feed shows three, moderation four. */
+  grid-auto-flow: column;
+  grid-auto-columns: minmax(0, 1fr);
   padding: 25px 0 23px;
   border-bottom: 1px solid #e4e8ef;
   margin-bottom: 23px;
@@ -1302,6 +1304,36 @@ progress::-moz-progress-bar {
 .auth-back {
   margin-top: 22px;
 }
+.demo-accounts {
+  display: grid;
+  gap: 8px;
+  padding: 12px 14px;
+  border: 1px dashed #c9d6f2;
+  border-radius: 8px;
+  background: #f5f8ff;
+  font-size: 11px;
+  color: #6c7a92;
+}
+.demo-accounts > div {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.demo-accounts .chip {
+  min-height: 30px;
+  padding: 0 12px;
+  border: 1px solid #d5e0f6;
+  border-radius: 6px;
+  background: #fff;
+  color: var(--blue);
+  font-size: 12px;
+  font-weight: 600;
+  transition: border-color 180ms, background 180ms;
+}
+.demo-accounts .chip:hover {
+  border-color: var(--blue);
+  background: #eef3ff;
+}
 .receipt {
   text-align: center;
   display: flex;
@@ -1609,6 +1641,13 @@ progress::-moz-progress-bar {
 }
 .history {
   border-block: 1px solid var(--line);
+}
+/* The action row already draws the divider above the history. */
+.detail-actions + .history {
+  border-top: 0;
+  margin-top: -20px;
+}
+.history {
   padding: 15px 0;
   color: #93a0b3;
   font-size: 10px;
@@ -3029,5 +3068,17 @@ td select {
   .log-reason {
     max-width: 100%;
     white-space: normal;
+  }
+}
+
+@media (max-width: 720px) {
+  .overview-strip:has(> :nth-child(4)) {
+    grid-auto-flow: row;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    row-gap: 18px;
+  }
+  .overview-strip:has(> :nth-child(4)) > :nth-child(3) {
+    padding-left: 0;
+    border: 0;
   }
 }

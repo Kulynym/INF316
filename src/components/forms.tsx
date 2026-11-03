@@ -392,10 +392,19 @@ export function Receipt({
   );
 }
 
+// Published demo logins of the self-contained deployment (README, seed.ts).
+const demoAccounts = [
+  { label: "Қолданушы", email: "demo1@maxball.example" },
+  { label: "Оқытушы", email: "demo4@maxball.example" },
+  { label: "Басшылық", email: "demo6@maxball.example" },
+];
+const demoPassword = "Maxball2026";
+
 export function Auth({
   initial = "login",
   proof,
   viewer,
+  demo = false,
   onClose,
   onDone,
   onPending,
@@ -403,6 +412,7 @@ export function Auth({
   initial?: string;
   proof?: string;
   viewer: Boot["viewer"];
+  demo?: boolean;
   onClose: () => void;
   onDone: (kind?: "login" | "register" | "demo") => Promise<void>;
   onPending: (pending: boolean) => void;
@@ -486,6 +496,29 @@ export function Auth({
               defaultValue={mode === "profile" ? viewer?.name : ""}
             />
           </Field>
+        )}
+        {mode === "login" && demo && (
+          <div className="demo-accounts" role="group" aria-label="Демо аккаунттар">
+            <span>Демо аккаунттар · құпиясөз {demoPassword}</span>
+            <div>
+              {demoAccounts.map((a) => (
+                <button
+                  key={a.email}
+                  type="button"
+                  className="chip"
+                  onClick={(event) => {
+                    const form = event.currentTarget.form;
+                    if (!form) return;
+                    (form.elements.namedItem("email") as HTMLInputElement).value = a.email;
+                    (form.elements.namedItem("password") as HTMLInputElement).value = demoPassword;
+                    form.querySelector<HTMLButtonElement>('button[type="submit"]')?.focus();
+                  }}
+                >
+                  {a.label}
+                </button>
+              ))}
+            </div>
+          </div>
         )}
         {mode !== "reset" && mode !== "profile" && (
           <Field label="Email">

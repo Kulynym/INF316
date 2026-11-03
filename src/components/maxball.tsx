@@ -118,6 +118,17 @@ export default function Maxball() {
   const [limit, setLimit] = useState(8);
   const [filters, setFilters] = useState(false);
   const [menu, setMenu] = useState(false);
+  const menuButton = useRef<HTMLButtonElement>(null);
+  useEffect(() => {
+    if (!menu) return;
+    const close = (event: KeyboardEvent) => {
+      if (event.key !== "Escape" || document.querySelector("dialog[open]")) return;
+      setMenu(false);
+      menuButton.current?.focus();
+    };
+    document.addEventListener("keydown", close);
+    return () => document.removeEventListener("keydown", close);
+  }, [menu]);
   const [compose, setCompose] = useState(false);
   const [auth, setAuth] = useState<string | null>(null);
   const [authProof, setAuthProof] = useState<string>();
@@ -205,6 +216,7 @@ export default function Maxball() {
     clearTimeout(feedbackTimer.current);
     ++requestVersion.current;
   }, []);
+  const filtered = Boolean(search || type !== "all" || course || teacherFilter || status !== "all");
   function resetFilters() {
     setSearch(""); setType("all"); setStatus("all"); setCourse("");
     setTeacherFilter(""); setSort("new"); setLimit(8); setFilters(false);
@@ -416,9 +428,11 @@ export default function Maxball() {
       <div className={`app-shell ${sessionBusy || sessionUnknown ? "session-pending" : ""}`} inert={sessionBusy || sessionUnknown}>
         <header className="topbar">
           <button
+            ref={menuButton}
             className="icon-btn mobile-only"
             title="Мәзір"
             aria-label="Мәзір"
+            aria-expanded={menu}
             onClick={() => setMenu(!menu)}
           >
             <Menu size={21} />
@@ -768,7 +782,7 @@ export default function Maxball() {
                           </button>
                         </Reveal>
                       </Presence>
-                      {!filters && (search || type !== "all" || course || teacherFilter || status !== "all") && <button className="text-btn clear-filters" onClick={resetFilters}><X size={13} /> Сүзгілерді тазарту</button>}
+                      {!filters && filtered && <button className="text-btn clear-filters" onClick={resetFilters}><X size={13} /> Сүзгілерді тазарту</button>}
                       <div className="list-meta">
                         <span role="status">{posts.length} жазба</span>
                         <label>
@@ -841,18 +855,11 @@ export default function Maxball() {
                             кейін оқу үшін сақтаңыз.
                           </span>
                         )}
-                        <button
-                          className="text-btn"
-                          onClick={() => {
-                            setSearch("");
-                            setType("all");
-                            setCourse("");
-                            setStatus("all");
-                            setTeacherFilter("");
-                          }}
-                        >
-                          Сүзгілерді тазарту
-                        </button>
+                        {filtered && (
+                          <button className="text-btn" onClick={resetFilters}>
+                            Сүзгілерді тазарту
+                          </button>
+                        )}
                       </Empty>
                     )}
                     {posts.length > limit && (
@@ -1890,6 +1897,7 @@ export default function Maxball() {
           initial={auth}
           proof={authProof}
           viewer={data.viewer}
+          demo={data.demo}
           onClose={() => {
             setAuth(null);
             setAuthProof(undefined);

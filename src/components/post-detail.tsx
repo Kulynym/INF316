@@ -12,6 +12,7 @@ import {
   Pencil,
   Reply,
   Share2,
+  ShieldAlert,
   ShieldCheck,
   Trash2,
   Undo2,
@@ -298,9 +299,10 @@ export default function PostDetail({
               className="icon-btn"
               title="Модерация"
               aria-label="Модерация"
+              aria-pressed={moderate}
               onClick={() => setModerate(!moderate)}
             >
-              <Flag size={17} />
+              <ShieldAlert size={17} />
             </button>
           )}
         </div>
@@ -689,6 +691,10 @@ function CommentRow({
   const [editing, setEditing] = useState(false);
   const [error, setError] = useState("");
   const [confirming, setConfirming] = useState(false);
+  // Hidden comments reach non-managers without their text; nothing on such a
+  // placeholder (or on a deleted comment) can be replied to or reported.
+  const masked = c.hidden && !manager;
+  const inert = c.deleted || masked;
   return (
     <div className={`comment ${c.hidden ? "hidden-comment" : ""}`}>
       <span className="avatar small-avatar">{initials(c.name)}</span>
@@ -713,25 +719,31 @@ function CommentRow({
             />
           </Form>
         ) : (
-          <p>{c.body || "Пікір өшірілген"}</p>
+          <p>
+            {c.deleted
+              ? "Пікір өшірілген"
+              : masked
+                ? "Бұл пікірді модератор жасырды"
+                : c.body}
+          </p>
         )}
         {c.hidden && c.hiddenReason && manager && (
           <p className="comment-hidden-reason">
             <EyeOff size={13} /> Жасыру себебі: {c.hiddenReason}
           </p>
         )}
-        <div className="comment-tools">
-          {!c.deleted && onReply && (
+        {!inert && <div className="comment-tools">
+          {onReply && (
             <button onClick={onReply}>
               <Reply size={13} />
               Жауап беру
             </button>
           )}
-          <button onClick={() => onReport(c.id)} disabled={c.deleted}>
+          <button onClick={() => onReport(c.id)}>
             <Flag size={13} />
             Шағым беру
           </button>
-          {!c.deleted && c.mine && (
+          {c.mine && (
             <>
               <button
                 aria-label="Пікірді өзгерту"
@@ -749,7 +761,7 @@ function CommentRow({
               </button>
             </>
           )}
-          {manager && !c.deleted && (
+          {manager && (
             <>
               {c.hidden ? (
                 <button onClick={() => onModerate(c.id, "restore")}>
@@ -772,7 +784,7 @@ function CommentRow({
               </button>
             </>
           )}
-        </div>
+        </div>}
         {error && <p className="error">{error}</p>}
         {confirming && (
           <Confirm

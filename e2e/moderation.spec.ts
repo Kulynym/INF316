@@ -47,7 +47,7 @@ test.describe("moderation system", () => {
     await expect(detail.locator("h1")).toBeVisible();
     const title = await detail.locator("h1").innerText();
     // 2. Report it for spam with a note.
-    await detail.getByRole("button", { name: "Шағым беру" }).click();
+    await detail.locator(".detail-actions").getByRole("button", { name: "Шағым беру" }).click();
     const reportForm = page
       .locator("form")
       .filter({ has: page.getByRole("radiogroup") });
@@ -106,12 +106,14 @@ test.describe("moderation system", () => {
   test("comment moderation masks one comment and leaves the post public", async ({ page }) => {
     await page.goto("/");
     await loginAs(page, ACCOUNTS.user);
-    // Leave a fresh comment on the first post.
+    // Leave a fresh, uniquely marked comment on the first post (the suite
+    // may run again against the same database).
+    const text = `Сынақ: осы пікір жасырылады ${Date.now().toString(36)}`;
     await page.locator(".post-card .post-open").first().click();
     const detail = page.getByRole("dialog");
-    await detail.getByPlaceholder("Талқылауға қосылыңыз").fill("Сынақ: осы пікір жасырылады.");
+    await detail.getByPlaceholder("Талқылауға қосылыңыз").fill(text);
     await detail.getByRole("button", { name: "Жіберу" }).click();
-    await expect(detail.getByText("Сынақ: осы пікір жасырылады.")).toBeVisible();
+    await expect(detail.getByText(text)).toBeVisible();
     await closeOpenDialogs(page);
     await logoutVia(page);
 
@@ -119,7 +121,7 @@ test.describe("moderation system", () => {
     await page.locator(".post-card .post-open").first().click();
     const managerView = page.getByRole("dialog");
     const target = managerView
-      .locator(".comment", { hasText: "Сынақ: осы пікір жасырылады" })
+      .locator(".comment", { hasText: text })
       .first();
     await target.getByRole("button", { name: "Жасыру" }).click();
     const reasonForm = page
@@ -138,8 +140,12 @@ test.describe("moderation system", () => {
     await page.locator(".post-card .post-open").first().click();
     const publicView = page.getByRole("dialog");
     await expect(publicView.locator("h1")).toBeVisible();
-    await expect(publicView.getByText("Сынақ: осы пікір жасырылады")).toHaveCount(0);
+    await expect(publicView.getByText(text)).toHaveCount(0);
     await expect(publicView.getByText("Жасырылған пікір").first()).toBeVisible();
+    // A masked placeholder offers nothing to reply to or report.
+    const masked = publicView.locator(".comment", { hasText: "Бұл пікірді модератор жасырды" }).first();
+    await expect(masked).toBeVisible();
+    await expect(masked.getByRole("button")).toHaveCount(0);
     await closeOpenDialogs(page);
   });
 
