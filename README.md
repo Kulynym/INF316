@@ -4,9 +4,12 @@
 
 ## Docker, PostgreSQL және деплой (Assignment 3)
 
-Тікелей сайт (Render, тегін жоспар; 15 минут тыныштықтан кейін алғашқы ашылу ~1 минут):
-**https://maxball-3kst.onrender.com** · демо аккаунттар: `demo1@maxball.example` (қолданушы),
-`demo6@maxball.example` (басшылық), құпиясөз `Maxball2026`.
+Тікелей сайттар (демо аккаунттар: `demo1@maxball.example` — қолданушы,
+`demo6@maxball.example` — басшылық, құпиясөз `Maxball2026`):
+
+- **AWS** (CloudFormation, EC2 + Caddy HTTPS + PostgreSQL): **https://3-105-197-158.sslip.io**
+- **Render** (тегін жоспар; 15 минут тыныштықтан кейін алғашқы ашылу ~1 минут):
+  **https://maxball-3kst.onrender.com**
 
 Бір Docker образы статикалық фронтенд пен API-ды бірге береді, деректер PostgreSQL-де сақталады:
 
