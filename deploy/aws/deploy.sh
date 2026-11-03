@@ -9,6 +9,13 @@ cd /opt/maxball
 TAG="${1:-latest}"
 REF="$TAG"; [ "$TAG" = latest ] && REF=main
 source .env
+# Instances bootstrapped before the template stopped tracing secrets printed
+# APP_SECRET to the serial console; replace it once (signs users out).
+if [ -z "${APP_SECRET_ROTATED:-}" ]; then
+  sed -i '/^APP_SECRET=/d' .env
+  { echo "APP_SECRET=$(openssl rand -hex 32)"; echo "APP_SECRET_ROTATED=1"; } >> .env
+  echo "rotated APP_SECRET"
+fi
 RAW="https://raw.githubusercontent.com/${GITHUB_REPOSITORY}/${REF}/deploy/aws"
 curl -fsSL "$RAW/docker-compose.prod.yml" -o docker-compose.yml
 curl -fsSL "$RAW/Caddyfile" -o Caddyfile

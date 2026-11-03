@@ -116,15 +116,19 @@ Resources:
           swapon -a || true
           mkdir -p /opt/maxball
           cd /opt/maxball
-          # Secrets are generated on the instance and never leave it.
+          # Secrets are generated on the instance and never leave it: tracing
+          # is off here so they do not reach the log or the serial console.
+          set +x
           if [ ! -f .env ]; then
             umask 077
             {
               echo "POSTGRES_PASSWORD=$(openssl rand -hex 24)"
               echo "APP_SECRET=$(openssl rand -hex 32)"
+              echo "APP_SECRET_ROTATED=1"
               echo "GITHUB_REPOSITORY=${GitHubRepository}"
             } > .env
           fi
+          set -x
           for f in deploy.sh autodeploy.sh; do
             curl -fsSL "https://raw.githubusercontent.com/${GitHubRepository}/main/deploy/aws/$f" -o "$f"
             chmod 700 "$f"
