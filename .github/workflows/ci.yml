@@ -1,10 +1,13 @@
 # CI/CD (#33): every push and pull request runs the backend/frontend unit
 # and contract suites on memory, SQLite and PostgreSQL, the isolated browser
-# runner, and the Docker Compose stack with HTTP integration + Playwright
-# end-to-end tests (one spec per feature, issues labelled e2e-test).
-# Every green commit on main publishes the image to GHCR and re-deploys
-# Render (#34) and AWS (#35); a deploy job is skipped until its
-# repository variables exist, so forks and fresh clones stay green.
+# runner, the Docker Compose stack with HTTP integration + Playwright
+# end-to-end tests (one spec per feature, issues labelled e2e-test), and the
+# observability stack (OpenTelemetry -> Prometheus/Loki/Jaeger/Grafana,
+# alert -> AI on-call agent).
+# Every green commit on main publishes the images to GHCR and deploys the
+# DEVELOPMENT environment (Render). PRODUCTION (AWS) changes only through
+# the manual "Promote to production" workflow (promote.yml). A deploy job is
+# skipped until its repository variables exist.
 name: CI/CD
 
 on:
@@ -55,6 +58,25 @@ jobs:
           TEST_DATABASE_URL: postgres://maxball:maxball@localhost:5432/maxball_test
       - name: Frontend production build
         run: npm run build
+      - name: On-call agent typecheck and tests (fake Anthropic/GitHub APIs)
+        working-directory: oncall
+        run: npm ci && npm run typecheck && npm test
+      - name: Alert rules check and unit tests (promtool)
+        run: |
+          docker run --rm -v "$PWD/deploy/observability:/rules" -w /rules --entrypoint promtool \
+            prom/prometheus:v3.15.1 check rules alerts.yml
+          docker run --rm -v "$PWD/deploy/observability:/rules" -w /rules --entrypoint promtool \
+            prom/prometheus:v3.15.1 test rules alerts.test.yml
+      - name: Collector and Alertmanager configs are valid
+        run: |
+          docker run --rm -v "$PWD/deploy/observability/otel-collector.yaml:/c.yaml:ro" \
+            otel/opentelemetry-collector-contrib:0.163.2 validate --config=/c.yaml
+          docker run --rm -v "$PWD/deploy/observability/alertmanager.yml:/a.yml:ro" --entrypoint amtool \
+            prom/alertmanager:v0.34.2 check-config /a.yml
+      - name: Dashboard JSON matches its generator
+        run: |
+          python3 deploy/observability/grafana/build-dashboard.py
+          git diff --exit-code deploy/observability/grafana/dashboards
 
   browser:
     name: Isolated browser runner (SQLite + mock mode)
@@ -140,10 +162,62 @@ jobs:
         if: always()
         run: docker compose down -v
 
+  observability:
+    name: Observability (OpenTelemetry, dashboard, alert -> AI on-call)
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    env:
+      APP_PORT: "3000"
+      APP_VERSION: ${{ github.sha }}
+      APP_URL: http://127.0.0.1:3000
+      TEST_URL: http://127.0.0.1:3000
+      MAXBALL_IMAGE: maxball-ci:${{ github.sha }}
+      ONCALL_IMAGE: maxball-oncall-ci:${{ github.sha }}
+      MAXBALL_RATE_LIMIT_SCALE: "50"
+      OTEL_METRIC_EXPORT_INTERVAL: "5000"
+      ONCALL_COOLDOWN_MINUTES: "1"
+      # When the repository has this secret the agent investigates with
+      # Claude; without it the agent files its raw-evidence report.
+      ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+    steps:
+      - uses: actions/checkout@v7.0.1
+      - uses: actions/setup-node@v7.1.0
+        with:
+          node-version: 24
+          cache: npm
+      - name: Start app, database and the observability stack
+        run: docker compose -f docker-compose.yml -f docker-compose.observability.yml up --build -d --wait --wait-timeout 300
+      - run: npm ci
+      - run: npx playwright install --with-deps chromium
+      - name: Generate traffic (feature specs)
+        run: >-
+          npx playwright test --project=desktop-1280x720
+          e2e/features/01-public-feed.spec.ts e2e/features/02-guest-submission.spec.ts
+          e2e/features/05-accounts-login.spec.ts e2e/features/09-comments.spec.ts
+          e2e/features/10-support-bookmarks.spec.ts e2e/features/14-moderation.spec.ts
+      - name: Change a metric - 25 failed logins (MaxballLoginFailureSpike)
+        run: |
+          for i in $(seq 1 25); do
+            curl -s -o /dev/null -w "%{http_code} " -X POST "$TEST_URL/api/actions" \
+              -H "Origin: $TEST_URL" -H "Content-Type: application/json" \
+              -d "{\"action\":\"login\",\"email\":\"guess$i@example.com\",\"password\":\"wrong-password\"}"
+          done
+      - name: Verify metrics, logs, traces, dashboard, alert and on-call report
+        run: node scripts/verify-observability.mjs
+      - name: On-call report in the job summary
+        if: always()
+        run: test -f oncall-report.md && cat oncall-report.md >> "$GITHUB_STEP_SUMMARY" || true
+      - name: Stack logs on failure
+        if: failure()
+        run: docker compose -f docker-compose.yml -f docker-compose.observability.yml logs --no-color --tail 200
+      - name: Tear down
+        if: always()
+        run: docker compose -f docker-compose.yml -f docker-compose.observability.yml down -v
+
   publish:
     name: Publish image to GHCR
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-    needs: [unit, browser, stack]
+    needs: [unit, browser, stack, observability]
     runs-on: ubuntu-latest
     timeout-minutes: 20
     permissions:
@@ -166,15 +240,22 @@ jobs:
           tags: |
             ${{ env.IMAGE }}:latest
             ${{ env.IMAGE }}:${{ github.sha }}
+      - uses: docker/build-push-action@v6
+        with:
+          context: oncall
+          push: true
+          tags: |
+            ${{ env.IMAGE }}-oncall:latest
+            ${{ env.IMAGE }}-oncall:${{ github.sha }}
 
-  deploy-render:
-    name: Deploy to Render (Blueprint mirroring docker-compose.yml)
+  deploy-development:
+    name: Deploy to development (Render)
     if: github.event_name == 'push' && github.ref == 'refs/heads/main' && vars.RENDER_APP_URL != ''
     needs: publish
     runs-on: ubuntu-latest
     timeout-minutes: 20
     environment:
-      name: render
+      name: development
       url: ${{ vars.RENDER_APP_URL }}
     steps:
       - name: Deploy this commit's image through the deploy hook
@@ -194,30 +275,4 @@ jobs:
             sleep 15
           done
           echo "Render did not report version ${GITHUB_SHA}" >&2
-          exit 1
-
-  deploy-aws:
-    name: Deploy to AWS (CloudFormation stack, pull-based rollout)
-    # The instance's autodeploy timer pulls every image this workflow
-    # publishes (the AWS free plan denies the IAM OIDC provider a push
-    # deploy would need); this job proves the new commit went live.
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main' && vars.AWS_APP_URL != ''
-    needs: publish
-    runs-on: ubuntu-latest
-    timeout-minutes: 20
-    environment:
-      name: aws
-      url: ${{ vars.AWS_APP_URL }}
-    steps:
-      - name: Wait until AWS serves this commit
-        env:
-          APP: ${{ vars.AWS_APP_URL }}
-        run: |
-          for i in $(seq 1 60); do
-            body=$(curl -fsS "$APP/api/health" || true)
-            echo "$body"
-            if echo "$body" | grep -q "\"version\":\"${GITHUB_SHA}\""; then exit 0; fi
-            sleep 15
-          done
-          echo "AWS did not report version ${GITHUB_SHA}" >&2
           exit 1
