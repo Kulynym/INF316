@@ -184,6 +184,7 @@ paths:
                 properties:
                   status: { type: string, enum: [ok] }
                   adapter: { type: string, enum: [memory, sqlite, postgres] }
+                  environment: { type: string, enum: [development, production] }
                   version: { type: string }
         "500": { $ref: "#/components/responses/ServerError" }
         "503":

@@ -5,7 +5,11 @@ const config: NextConfig = {
   // Self-contained server for the single Docker image (#31): pages are
   // prerendered static assets served by the same Node process as /api/*.
   output: "standalone",
-  serverExternalPackages: ["pg", "nodemailer", "typeorm", "better-sqlite3"],
+  // OpenTelemetry patches modules at require time, so it must stay unbundled.
+  serverExternalPackages: [
+    "pg", "nodemailer", "typeorm", "better-sqlite3",
+    "@opentelemetry/sdk-node", "@opentelemetry/instrumentation-http", "@opentelemetry/instrumentation-pg",
+  ],
   async headers() {
     return [
       {

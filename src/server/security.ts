@@ -10,6 +10,7 @@ import { readFile, writeFile, mkdir } from "node:fs/promises";
 import path from "node:path";
 import { localMode } from "./mode";
 import type { Store } from "./store/types";
+import { recordRateLimited } from "./telemetry/metrics";
 
 export class AppError extends Error {
   constructor(
@@ -116,11 +117,13 @@ export async function rateLimit(
     count = Number(existing.count) + 1;
     await repo.update("rate_limits", id, { count });
   }
-  if (count > max * rateLimitScale())
+  if (count > max * rateLimitScale()) {
+    recordRateLimited(id);
     throw new AppError(
       "Әрекет тым жиі қайталанды. Біраздан кейін қайталап көріңіз.",
       429,
     );
+  }
 }
 export function requireSameOrigin(request: Request) {
   const origin = request.headers.get("origin");
