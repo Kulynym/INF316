@@ -40,6 +40,8 @@ services:
       APP_URL: ${APP_URL:-http://localhost:3000}
       # 1 = production limits; CI raises it for the end-to-end suite only.
       MAXBALL_RATE_LIMIT_SCALE: ${MAXBALL_RATE_LIMIT_SCALE:-1}
+      # development locally and on Render; production on AWS.
+      APP_ENV: ${APP_ENV:-development}
     ports:
       - "${APP_PORT:-3000}:3000"
     volumes:

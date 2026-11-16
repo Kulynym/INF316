@@ -1,0 +1,159 @@
+# Unit tests for alerts.yml: each alert fires when its metric changes and
+# stays quiet before. Run: promtool test rules deploy/observability/alerts.test.yml
+rule_files:
+  - alerts.yml
+evaluation_interval: 15s
+
+tests:
+  - name: failed logins jump
+    interval: 1m
+    input_series:
+      - series: 'maxball_logins_total{result="failure", environment="production"}'
+        values: '0+5x10'
+    alert_rule_test:
+      - eval_time: 2m
+        alertname: MaxballLoginFailureSpike
+        exp_alerts: []
+      - eval_time: 7m
+        alertname: MaxballLoginFailureSpike
+        exp_alerts:
+          - exp_labels: { severity: warning, environment: production }
+            exp_annotations:
+              summary: 'Failed logins jumped'
+              description: '25 failed logins in 5 minutes in production (possible password guessing or a broken login).'
+              runbook: '_docs/observability.md#maxballloginfailurespike'
+
+  - name: health check fails for over a minute
+    interval: 1m
+    input_series:
+      - series: 'httpcheck_status{http_status_class="2xx", http_url="http://app:3000/api/health", environment="production"}'
+        values: '1 1 1 0 0 0 0'
+    alert_rule_test:
+      - eval_time: 2m
+        alertname: MaxballDown
+        exp_alerts: []
+      - eval_time: 6m
+        alertname: MaxballDown
+        exp_alerts:
+          - exp_labels: { severity: critical, environment: production }
+            exp_annotations:
+              summary: 'MAXBALL health check is failing'
+              description: '/api/health has not answered 2xx for over a minute in production.'
+              runbook: '_docs/observability.md#maxballdown'
+
+  - name: server errors above 5 percent
+    interval: 1m
+    input_series:
+      - series: 'maxball_actions_total{action="createPost", outcome="ok", environment="production"}'
+        values: '0+10x15'
+      - series: 'maxball_actions_total{action="createPost", outcome="error", environment="production"}'
+        values: '0 0 0 0 0 0+3x10'
+    alert_rule_test:
+      - eval_time: 4m
+        alertname: MaxballActionErrors
+        exp_alerts: []
+      - eval_time: 12m
+        alertname: MaxballActionErrors
+        exp_alerts:
+          - exp_labels: { severity: critical, environment: production }
+            exp_annotations:
+              summary: 'More than 5% of API actions fail with a server error'
+              description: '23.08% of actions ended in a 5xx over 5 minutes in production.'
+              runbook: '_docs/observability.md#maxballactionerrors'
+
+  - name: p95 action time above one second
+    interval: 1m
+    input_series:
+      - series: 'maxball_action_duration_seconds_bucket{le="1", environment="production"}'
+        values: '0+1x20'
+      - series: 'maxball_action_duration_seconds_bucket{le="2.5", environment="production"}'
+        values: '0+10x20'
+      - series: 'maxball_action_duration_seconds_bucket{le="+Inf", environment="production"}'
+        values: '0+10x20'
+      - series: 'maxball_actions_total{action="createPost", outcome="ok", environment="production"}'
+        values: '0+10x20'
+    alert_rule_test:
+      - eval_time: 3m
+        alertname: MaxballSlowActions
+        exp_alerts: []
+      - eval_time: 15m
+        alertname: MaxballSlowActions
+        exp_alerts:
+          - exp_labels: { severity: warning, environment: production }
+            exp_annotations:
+              summary: 'API actions are slow (p95 above 1s)'
+              description: '95th percentile action time is 2.417s in production.'
+              runbook: '_docs/observability.md#maxballslowactions'
+
+  - name: feedback volume changes sharply
+    interval: 1m
+    input_series:
+      # An hour at ~6 posts/hour, then 2 posts a minute.
+      - series: 'maxball_feedback_created_total{type="issue", author="guest", anonymous="false", environment="production"}'
+        values: '0+0.1x60 6+2x30'
+    alert_rule_test:
+      - eval_time: 55m
+        alertname: MaxballFeedbackVolumeChange
+        exp_alerts: []
+      - eval_time: 80m
+        alertname: MaxballFeedbackVolumeChange
+        exp_alerts:
+          - exp_labels: { severity: warning, environment: production }
+            exp_annotations:
+              summary: 'Feedback volume changed sharply'
+              description: '30 posts in 15 minutes in production, over three times the previous hour''s pace (a real campus problem, or spam).'
+              runbook: '_docs/observability.md#maxballfeedbackvolumechange'
+
+  - name: reports pile up
+    interval: 1m
+    input_series:
+      - series: 'maxball_reports_created_total{target="post", reason="spam", environment="production"}'
+        values: '0 0 0 0 0 1+1x15'
+    alert_rule_test:
+      - eval_time: 4m
+        alertname: MaxballReportsSpike
+        exp_alerts: []
+      - eval_time: 15m
+        alertname: MaxballReportsSpike
+        exp_alerts:
+          - exp_labels: { severity: warning, environment: production }
+            exp_annotations:
+              summary: 'Content reports are piling up'
+              description: '11 reports in 15 minutes in production; moderators should look at the queue.'
+              runbook: '_docs/observability.md#maxballreportsspike'
+
+  - name: open issues grow within an hour
+    interval: 1m
+    input_series:
+      - series: 'maxball_feedback_open{type="issue", status="new", environment="production"}'
+        values: '2x60 8x10'
+    alert_rule_test:
+      - eval_time: 30m
+        alertname: MaxballOpenIssuesGrowing
+        exp_alerts: []
+      - eval_time: 65m
+        alertname: MaxballOpenIssuesGrowing
+        exp_alerts:
+          - exp_labels: { severity: info, environment: production }
+            exp_annotations:
+              summary: 'Unresolved issues are growing'
+              description: '6 more open issues than an hour ago in production.'
+              runbook: '_docs/observability.md#maxballopenissuesgrowing'
+
+  - name: rate limiting surges
+    interval: 1m
+    input_series:
+      - series: 'maxball_rate_limited_total{bucket="login", environment="production"}'
+        values: '0+10x10'
+    alert_rule_test:
+      - eval_time: 2m
+        alertname: MaxballRateLimiting
+        exp_alerts: []
+      - eval_time: 8m
+        alertname: MaxballRateLimiting
+        exp_alerts:
+          - exp_labels: { severity: warning, environment: production, bucket: login }
+            exp_annotations:
+              summary: 'Many requests are being rate limited'
+              description: '50 requests refused by the login limit in 5 minutes in production.'
+              runbook: '_docs/observability.md#maxballratelimiting'

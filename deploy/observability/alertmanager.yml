@@ -1,0 +1,15 @@
+# Alertmanager: groups alerts and sends firing and resolved notifications to
+# the AI on-call agent, which investigates and files the incident issue.
+route:
+  receiver: oncall-agent
+  group_by: [alertname, environment]
+  group_wait: 10s
+  group_interval: 1m
+  repeat_interval: 4h
+
+receivers:
+  - name: oncall-agent
+    webhook_configs:
+      - url: http://oncall-agent:8080/alerts
+        send_resolved: true
+        # The agent's port is only reachable inside the compose network.

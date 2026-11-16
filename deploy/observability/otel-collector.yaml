@@ -1,0 +1,65 @@
+# OpenTelemetry Collector: the one place the app sends telemetry to (OTLP).
+#   traces  -> Jaeger (OTLP)
+#   metrics -> Prometheus scrapes this collector on :8889
+#   logs    -> Loki (native OTLP endpoint)
+# It also probes the app's /api/health every 15s (httpcheck_status), so
+# "the site is down" is a metric even when the app cannot send anything.
+receivers:
+  otlp:
+    protocols:
+      grpc:
+        endpoint: ${env:OTLP_GRPC_LISTEN:-0.0.0.0:4317}
+      http:
+        endpoint: ${env:OTLP_HTTP_LISTEN:-0.0.0.0:4318}
+  http_check:
+    collection_interval: 15s
+    targets:
+      - endpoint: ${env:APP_HEALTH_URL:-http://app:3000/api/health}
+        method: GET
+
+processors:
+  memory_limiter:
+    check_interval: 5s
+    limit_mib: 200
+  batch: {}
+  # Prometheus series carry the deployment's environment as a label.
+  transform/environment:
+    metric_statements:
+      - set(datapoint.attributes["environment"], resource.attributes["deployment.environment.name"]) where resource.attributes["deployment.environment.name"] != nil
+      - set(datapoint.attributes["environment"], "${env:DEPLOYMENT_ENVIRONMENT:-development}") where datapoint.attributes["environment"] == nil
+
+exporters:
+  prometheus:
+    endpoint: 0.0.0.0:8889
+    namespace: ""
+    send_timestamps: false
+    metric_expiration: 30m
+  otlp/jaeger:
+    endpoint: ${env:JAEGER_OTLP_ENDPOINT:-jaeger:4317}
+    tls:
+      insecure: true
+  otlp_http/loki:
+    endpoint: ${env:LOKI_OTLP_ENDPOINT:-http://loki:3100/otlp}
+
+extensions:
+  health_check:
+    endpoint: 0.0.0.0:13133
+
+service:
+  extensions: [health_check]
+  telemetry:
+    logs:
+      level: warn
+  pipelines:
+    traces:
+      receivers: [otlp]
+      processors: [memory_limiter, batch]
+      exporters: [otlp/jaeger]
+    metrics:
+      receivers: [otlp, http_check]
+      processors: [memory_limiter, transform/environment, batch]
+      exporters: [prometheus]
+    logs:
+      receivers: [otlp]
+      processors: [memory_limiter, batch]
+      exporters: [otlp_http/loki]

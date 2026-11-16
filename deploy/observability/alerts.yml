@@ -1,0 +1,103 @@
+# Alert rules on the application metrics (src/server/telemetry/metrics.ts).
+# Each fires when a metric changes away from its normal behaviour; firing and
+# resolved alerts go to Alertmanager, which hands them to the AI on-call
+# agent (oncall/agent.ts). Runbook: _docs/observability.md#alerts
+groups:
+  - name: maxball-availability
+    rules:
+      - alert: MaxballDown
+        # The collector probes /api/health every 15s; no 2xx for a minute = down.
+        expr: max by (environment) (max_over_time(httpcheck_status{http_status_class="2xx"}[1m])) < 1
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "MAXBALL health check is failing"
+          description: "/api/health has not answered 2xx for over a minute in {{ $labels.environment }}."
+          runbook: "_docs/observability.md#maxballdown"
+
+  - name: maxball-errors
+    rules:
+      - alert: MaxballActionErrors
+        expr: |
+          (
+            sum by (environment) (rate(maxball_actions_total{outcome="error"}[5m]))
+            / clamp_min(sum by (environment) (rate(maxball_actions_total[5m])), 0.001)
+          ) > 0.05
+          and sum by (environment) (increase(maxball_actions_total{outcome="error"}[5m])) >= 3
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: "More than 5% of API actions fail with a server error"
+          description: "{{ $value | humanizePercentage }} of actions ended in a 5xx over 5 minutes in {{ $labels.environment }}."
+          runbook: "_docs/observability.md#maxballactionerrors"
+
+      - alert: MaxballSlowActions
+        expr: |
+          histogram_quantile(0.95, sum by (environment, le) (rate(maxball_action_duration_seconds_bucket[5m]))) > 1
+          and sum by (environment) (rate(maxball_actions_total[5m])) > 0.05
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "API actions are slow (p95 above 1s)"
+          description: "95th percentile action time is {{ $value | humanizeDuration }} in {{ $labels.environment }}."
+          runbook: "_docs/observability.md#maxballslowactions"
+
+  - name: maxball-business
+    rules:
+      - alert: MaxballLoginFailureSpike
+        expr: sum by (environment) (increase(maxball_logins_total{result="failure"}[5m])) > 20
+        labels:
+          severity: warning
+        annotations:
+          summary: "Failed logins jumped"
+          description: "{{ $value | humanize }} failed logins in 5 minutes in {{ $labels.environment }} (possible password guessing or a broken login)."
+          runbook: "_docs/observability.md#maxballloginfailurespike"
+
+      - alert: MaxballFeedbackVolumeChange
+        # Last 15 minutes against the average 15-minute window of the hour before.
+        expr: |
+          sum by (environment) (increase(maxball_feedback_created_total[15m])) > 10
+          and
+          sum by (environment) (increase(maxball_feedback_created_total[15m]))
+            > 3 * (
+              (sum by (environment) (increase(maxball_feedback_created_total[1h] offset 15m)) / 4)
+              or (sum by (environment) (increase(maxball_feedback_created_total[15m])) * 0)
+            )
+        labels:
+          severity: warning
+        annotations:
+          summary: "Feedback volume changed sharply"
+          description: "{{ $value | humanize }} posts in 15 minutes in {{ $labels.environment }}, over three times the previous hour's pace (a real campus problem, or spam)."
+          runbook: "_docs/observability.md#maxballfeedbackvolumechange"
+
+      - alert: MaxballReportsSpike
+        expr: sum by (environment) (increase(maxball_reports_created_total[15m])) >= 5
+        labels:
+          severity: warning
+        annotations:
+          summary: "Content reports are piling up"
+          description: "{{ $value | humanize }} reports in 15 minutes in {{ $labels.environment }}; moderators should look at the queue."
+          runbook: "_docs/observability.md#maxballreportsspike"
+
+      - alert: MaxballOpenIssuesGrowing
+        expr: |
+          sum by (environment) (maxball_feedback_open{type="issue"})
+          - sum by (environment) (maxball_feedback_open{type="issue"} offset 1h) >= 5
+        labels:
+          severity: info
+        annotations:
+          summary: "Unresolved issues are growing"
+          description: "{{ $value | humanize }} more open issues than an hour ago in {{ $labels.environment }}."
+          runbook: "_docs/observability.md#maxballopenissuesgrowing"
+
+      - alert: MaxballRateLimiting
+        expr: sum by (environment, bucket) (increase(maxball_rate_limited_total[5m])) > 30
+        labels:
+          severity: warning
+        annotations:
+          summary: "Many requests are being rate limited"
+          description: "{{ $value | humanize }} requests refused by the {{ $labels.bucket }} limit in 5 minutes in {{ $labels.environment }}."
+          runbook: "_docs/observability.md#maxballratelimiting"

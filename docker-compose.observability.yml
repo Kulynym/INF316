@@ -1,0 +1,119 @@
+# Observability overlay for docker-compose.yml: OpenTelemetry Collector,
+# Prometheus + Alertmanager, Loki, Jaeger, Grafana and the AI on-call agent.
+#   docker compose -f docker-compose.yml -f docker-compose.observability.yml up --build -d --wait
+#   Grafana http://localhost:3001 (dashboard "MAXBALL application")
+#   Jaeger  http://localhost:16686   Prometheus http://localhost:9090
+#   Alertmanager http://localhost:9093   on-call reports http://localhost:8080/reports
+# Configuration lives in deploy/observability/ (see _docs/observability.md).
+services:
+  app:
+    environment:
+      OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4318
+      OTEL_SERVICE_NAME: maxball
+      OTEL_METRIC_EXPORT_INTERVAL: ${OTEL_METRIC_EXPORT_INTERVAL:-15000}
+    depends_on:
+      otel-collector:
+        condition: service_started
+
+  otel-collector:
+    image: otel/opentelemetry-collector-contrib:0.163.2
+    restart: unless-stopped
+    command: ["--config=/etc/otelcol/config.yaml"]
+    environment:
+      APP_HEALTH_URL: http://app:3000/api/health
+      DEPLOYMENT_ENVIRONMENT: ${APP_ENV:-development}
+    volumes:
+      - ./deploy/observability/otel-collector.yaml:/etc/otelcol/config.yaml:ro
+    depends_on:
+      jaeger:
+        condition: service_started
+      loki:
+        condition: service_started
+
+  prometheus:
+    image: prom/prometheus:v3.15.1
+    restart: unless-stopped
+    command:
+      - --config.file=/etc/prometheus/prometheus.yml
+      - --storage.tsdb.retention.time=7d
+    volumes:
+      - ./deploy/observability/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ./deploy/observability/alerts.yml:/etc/prometheus/alerts.yml:ro
+      - prometheus:/prometheus
+    ports:
+      - "127.0.0.1:9090:9090"
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:9090/-/ready"]
+      interval: 10s
+      retries: 12
+
+  alertmanager:
+    image: prom/alertmanager:v0.34.2
+    restart: unless-stopped
+    command: ["--config.file=/etc/alertmanager/alertmanager.yml", "--storage.path=/alertmanager"]
+    volumes:
+      - ./deploy/observability/alertmanager.yml:/etc/alertmanager/alertmanager.yml:ro
+    ports:
+      - "127.0.0.1:9093:9093"
+
+  loki:
+    image: grafana/loki:3.7.9
+    restart: unless-stopped
+    command: ["-config.file=/etc/loki/config.yaml"]
+    volumes:
+      - ./deploy/observability/loki.yaml:/etc/loki/config.yaml:ro
+      - loki:/loki
+    ports:
+      - "127.0.0.1:3100:3100"
+
+  jaeger:
+    image: jaegertracing/jaeger:2.22.0
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:16686:16686"
+
+  grafana:
+    image: grafana/grafana:13.2.5
+    restart: unless-stopped
+    environment:
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD:-admin}
+      # Read-only dashboards without signing in; editing needs the admin login.
+      GF_AUTH_ANONYMOUS_ENABLED: "true"
+      GF_AUTH_ANONYMOUS_ORG_ROLE: Viewer
+      GF_DASHBOARDS_DEFAULT_HOME_DASHBOARD_PATH: /var/lib/grafana/dashboards/maxball.json
+      GF_ANALYTICS_REPORTING_ENABLED: "false"
+      GF_SERVER_ROOT_URL: ${GRAFANA_ROOT_URL:-http://localhost:3001/}
+      GF_SERVER_SERVE_FROM_SUB_PATH: ${GRAFANA_SUB_PATH:-false}
+      PROMETHEUS_URL: http://prometheus:9090
+      LOKI_URL: http://loki:3100
+      JAEGER_URL: http://jaeger:16686
+      ALERTMANAGER_URL: http://alertmanager:9093
+      GF_DASHBOARDS_PATH: /var/lib/grafana/dashboards
+    volumes:
+      - ./deploy/observability/grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./deploy/observability/grafana/dashboards:/var/lib/grafana/dashboards:ro
+      - grafana:/var/lib/grafana
+    ports:
+      - "127.0.0.1:${GRAFANA_PORT:-3001}:3000"
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:3000/api/health"]
+      interval: 10s
+      retries: 12
+
+  oncall-agent:
+    image: ${ONCALL_IMAGE:-ghcr.io/kulynym/inf316-oncall:latest}
+    build: ./oncall
+    restart: unless-stopped
+    environment:
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+      GITHUB_TOKEN: ${ONCALL_GITHUB_TOKEN:-}
+      GITHUB_REPOSITORY: ${ONCALL_GITHUB_REPOSITORY:-}
+      GRAFANA_PUBLIC_URL: ${GRAFANA_ROOT_URL:-http://localhost:3001/}
+      ONCALL_COOLDOWN_MINUTES: ${ONCALL_COOLDOWN_MINUTES:-30}
+    ports:
+      - "127.0.0.1:8080:8080"
+
+volumes:
+  prometheus:
+  loki:
+  grafana:
