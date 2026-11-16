@@ -103,7 +103,7 @@ the canonical #21/#22/#24 issues against the pushed implementation.
 ## Motion Addendum
 
 The [2026-10-20 motion and ownership addendum](ux-motion-2026-10-20.md) records
-the latest user decisions. Follow groomed [#24](https://github.com/maksatworkspace-sudo/studylist/issues/24)
+the latest user decisions. Follow groomed [#24](https://github.com/Kulynym/INF316/issues/24)
 for cohesive 250-450ms auth/dialog/toast/page transitions, responsive control
 feedback and reduced-motion behavior. Preserve existing #23 polish. Motion must
 never delay security updates, expose previous-account data, erase drafts or

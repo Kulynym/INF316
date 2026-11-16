@@ -25,8 +25,9 @@ done
 
 TOKEN=$(curl -fsS -X PUT http://169.254.169.254/latest/api/token -H "X-aws-ec2-metadata-token-ttl-seconds: 60")
 IP=$(curl -fsS -H "X-aws-ec2-metadata-token: $TOKEN" http://169.254.169.254/latest/meta-data/public-ipv4)
-sed -i '/^SITE_ADDRESS=/d;/^APP_TAG=/d' .env
+sed -i '/^SITE_ADDRESS=/d;/^APP_TAG=/d;/^IMAGE_REPO=/d' .env
 echo "SITE_ADDRESS=${IP//./-}.sslip.io" >> .env
+echo "IMAGE_REPO=${GITHUB_REPOSITORY,,}" >> .env  # registry names are lowercase
 echo "APP_TAG=$TAG" >> .env
 
 docker compose pull --quiet

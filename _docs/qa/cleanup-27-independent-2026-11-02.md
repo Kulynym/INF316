@@ -3,7 +3,7 @@
 PASS — scoped cleanup acceptance only. The full baseline and storage correctness
 are **not** accepted by this verdict; their outstanding failures are below.
 
-Issue: https://github.com/maksatworkspace-sudo/studylist/issues/27
+Issue: https://github.com/Kulynym/INF316/issues/27
 
 Tested pushed commit: `b08f07870416ff2dbd0cdefe3fdaf22ae92fe356`.
 GitHub's commit API and `git/ref/heads/main` independently confirmed this SHA.

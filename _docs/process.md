@@ -1,7 +1,7 @@
 # Development Process
 
 Date: 2026-10-20. This is the remediation process, not a claim about earlier work.
-The private [GitHub issues](https://github.com/maksatworkspace-sudo/studylist/issues)
+The private [GitHub issues](https://github.com/Kulynym/INF316/issues)
 are the ONLY mutable backlog. [tasks.md](tasks.md) is a link-only index.
 
 ## Precedence And Scope
@@ -40,16 +40,16 @@ as independent QA. Parallel slices must have explicit nonoverlapping ownership.
 
 | Stage | Issue | Gate and distinct evidence |
 | --- | --- | --- |
-| Baseline/process | [#4](https://github.com/maksatworkspace-sudo/studylist/issues/4) | Historical working commit plus new process-only commit; no empty-project fiction |
-| Mock frontend | [#5](https://github.com/maksatworkspace-sudo/studylist/issues/5) | Typed replaceable service; browser runs without application API calls |
-| OpenAPI | [#6](https://github.com/maksatworkspace-sudo/studylist/issues/6) | Root openapi.yml, validation and contract checks |
-| Memory backend | [#9](https://github.com/maksatworkspace-sudo/studylist/issues/9) | Running API with real collection-based repository, no SQL engine |
-| SQLite ORM | [#10](https://github.com/maksatworkspace-sudo/studylist/issues/10) | TypeORM EntitySchema + better-sqlite3, migrations, shared tests and restart proof |
-| Connected app | [#11](https://github.com/maksatworkspace-sudo/studylist/issues/11) | HTTP frontend, two sessions and restart persistence |
-| Feature/security verification | [#12](https://github.com/maksatworkspace-sudo/studylist/issues/12), [#13](https://github.com/maksatworkspace-sudo/studylist/issues/13), [#14](https://github.com/maksatworkspace-sudo/studylist/issues/14), [#15](https://github.com/maksatworkspace-sudo/studylist/issues/15), [#16](https://github.com/maksatworkspace-sudo/studylist/issues/16) | Verify existing features rather than claim them newly built |
-| Independent runner slice | [#19](https://github.com/maksatworkspace-sudo/studylist/issues/19) | After #4/#6 PASS; no domain change; isolated HTTP/browser CI |
-| Full QA | [#17](https://github.com/maksatworkspace-sudo/studylist/issues/17) | Feature QA plus #19, adversarial tests, clean npm ci proof and actual bug loop |
-| Final acceptance | [#18](https://github.com/maksatworkspace-sudo/studylist/issues/18) | Reconciled docs; all other MVP/bug issues QA-closed, then QA closes this |
+| Baseline/process | [#4](https://github.com/Kulynym/INF316/issues/4) | Historical working commit plus new process-only commit; no empty-project fiction |
+| Mock frontend | [#5](https://github.com/Kulynym/INF316/issues/5) | Typed replaceable service; browser runs without application API calls |
+| OpenAPI | [#6](https://github.com/Kulynym/INF316/issues/6) | Root openapi.yml, validation and contract checks |
+| Memory backend | [#9](https://github.com/Kulynym/INF316/issues/9) | Running API with real collection-based repository, no SQL engine |
+| SQLite ORM | [#10](https://github.com/Kulynym/INF316/issues/10) | TypeORM EntitySchema + better-sqlite3, migrations, shared tests and restart proof |
+| Connected app | [#11](https://github.com/Kulynym/INF316/issues/11) | HTTP frontend, two sessions and restart persistence |
+| Feature/security verification | [#12](https://github.com/Kulynym/INF316/issues/12), [#13](https://github.com/Kulynym/INF316/issues/13), [#14](https://github.com/Kulynym/INF316/issues/14), [#15](https://github.com/Kulynym/INF316/issues/15), [#16](https://github.com/Kulynym/INF316/issues/16) | Verify existing features rather than claim them newly built |
+| Independent runner slice | [#19](https://github.com/Kulynym/INF316/issues/19) | After #4/#6 PASS; no domain change; isolated HTTP/browser CI |
+| Full QA | [#17](https://github.com/Kulynym/INF316/issues/17) | Feature QA plus #19, adversarial tests, clean npm ci proof and actual bug loop |
+| Final acceptance | [#18](https://github.com/Kulynym/INF316/issues/18) | Reconciled docs; all other MVP/bug issues QA-closed, then QA closes this |
 
 Each of mock, contract, memory, SQLite and integration has its own honest
 remediation commit and pushed evidence. Do not combine the entire rewrite into
@@ -66,8 +66,8 @@ adds and demonstrates failing regression -> engineer fixes -> QA re-runs origina
 and adjacent cases -> QA PASS and closure after pushed proof. Add `bug` as useful.
 Do not invent defects or count old undocumented fixes as freshly reproduced.
 
-QA's reproduced [#7](https://github.com/maksatworkspace-sudo/studylist/issues/7)
-and [#8](https://github.com/maksatworkspace-sudo/studylist/issues/8) are groomed.
+QA's reproduced [#7](https://github.com/Kulynym/INF316/issues/7)
+and [#8](https://github.com/Kulynym/INF316/issues/8) are groomed.
 Preserve their original evidence and expected status choices. Fix in the new
 backend only after QA cases and #5/#6 gates; final closure needs both adapters
 and integrated HTTP verification. Bug work may be in the relevant stage commit
@@ -86,9 +86,9 @@ local app starts from a fresh source installation. Query both labels, including
 closed issues, rather than infer success from an empty filter. No deadline was
 provided; never claim a deadline was met without a supplied date.
 
-Unverified [live providers #1](https://github.com/maksatworkspace-sudo/studylist/issues/1),
-[hosting/publication #2](https://github.com/maksatworkspace-sudo/studylist/issues/2)
-and [scale #3](https://github.com/maksatworkspace-sudo/studylist/issues/3) remain
+Unverified [live providers #1](https://github.com/Kulynym/INF316/issues/1),
+[hosting/publication #2](https://github.com/Kulynym/INF316/issues/2)
+and [scale #3](https://github.com/Kulynym/INF316/issues/3) remain
 visible. Post-mvp labeling is deferred execution, not production acceptance.
 
 ## Sources

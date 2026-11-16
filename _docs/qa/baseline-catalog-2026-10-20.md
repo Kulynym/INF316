@@ -15,10 +15,10 @@
 
 ## Reproduced Bugs
 
-- [#7](https://github.com/maksatworkspace-sudo/studylist/issues/7): missing valid
+- [#7](https://github.com/Kulynym/INF316/issues/7): missing valid
   course/teacher UUIDs each cause HTTP 500; inactive course/teacher entries each
   accept new feedback with HTTP 200. Malformed UUIDs correctly return 400.
-- [#8](https://github.com/maksatworkspace-sudo/studylist/issues/8): authorized
+- [#8](https://github.com/Kulynym/INF316/issues/8): authorized
   leadership updates of a nonexistent course, teacher or account each return
   HTTP 200 `{"ok":true}` instead of 404.
 

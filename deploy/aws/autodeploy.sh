@@ -10,10 +10,11 @@ source .env
 SHA=$(git ls-remote "https://github.com/${GITHUB_REPOSITORY}.git" refs/heads/main | cut -f1)
 [ -n "$SHA" ] || exit 0
 [ "${APP_TAG:-}" = "$SHA" ] && exit 0
-TOKEN=$(curl -fsS "https://ghcr.io/token?scope=repository:${GITHUB_REPOSITORY}:pull" | jq -r .token)
+IMAGE_REPO="${GITHUB_REPOSITORY,,}"  # registry names are lowercase
+TOKEN=$(curl -fsS "https://ghcr.io/token?scope=repository:${IMAGE_REPO}:pull" | jq -r .token)
 curl -fsS -o /dev/null \
   -H "Authorization: Bearer $TOKEN" \
   -H "Accept: application/vnd.oci.image.index.v1+json,application/vnd.oci.image.manifest.v1+json,application/vnd.docker.distribution.manifest.list.v2+json,application/vnd.docker.distribution.manifest.v2+json" \
-  "https://ghcr.io/v2/${GITHUB_REPOSITORY}/manifests/${SHA}" || exit 0
+  "https://ghcr.io/v2/${IMAGE_REPO}/manifests/${SHA}" || exit 0
 echo "new published commit $SHA (running ${APP_TAG:-none})"
 exec ./deploy.sh "$SHA"

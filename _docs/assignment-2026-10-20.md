@@ -87,10 +87,10 @@ local filesystem; deploying this file there as-is is not an acceptable storage
 solution. A possible future persistent-volume Node host must be assessed and
 approved, not silently bought or deployed. See [Vercel runtime documentation](https://vercel.com/docs/functions/runtimes).
 
-Publication is paused under [#2](https://github.com/maksatworkspace-sudo/studylist/issues/2).
+Publication is paused under [#2](https://github.com/Kulynym/INF316/issues/2).
 No deployment is performed as part of this PM checkpoint. Real email delivery,
 Gmail authorization and actual Kazakh AI quality remain mandatory BLOCKED release
-gates under [#1](https://github.com/maksatworkspace-sudo/studylist/issues/1).
+gates under [#1](https://github.com/Kulynym/INF316/issues/1).
 Local safe provider adapters, durable queues, failure handling and all promised
 product features remain MVP under #16; mocks never mean live integration PASS.
 

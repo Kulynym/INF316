@@ -22,7 +22,7 @@ services:
       - app
 
   app:
-    image: ghcr.io/${GITHUB_REPOSITORY}:${APP_TAG:-latest}
+    image: ghcr.io/${IMAGE_REPO}:${APP_TAG:-latest}
     restart: unless-stopped
     depends_on:
       db:

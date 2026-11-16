@@ -22,7 +22,7 @@ services:
       - pgdata:/var/lib/postgresql/data
 
   app:
-    image: ${MAXBALL_IMAGE:-ghcr.io/maksatworkspace-sudo/studylist:latest}
+    image: ${MAXBALL_IMAGE:-ghcr.io/kulynym/inf316:latest}
     build:
       context: .
       args:

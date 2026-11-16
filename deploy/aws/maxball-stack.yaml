@@ -11,7 +11,7 @@ Description: >-
 Parameters:
   GitHubRepository:
     Type: String
-    Default: maksatworkspace-sudo/studylist
+    Default: Kulynym/INF316
     Description: owner/name of the public repository whose main branch is deployed.
   InstanceType:
     Type: String

@@ -1,6 +1,6 @@
 # Guest Grant Security Upgrade
 
-Issue: [#22](https://github.com/maksatworkspace-sudo/studylist/issues/22).
+Issue: [#22](https://github.com/Kulynym/INF316/issues/22).
 
 ## Decision
 

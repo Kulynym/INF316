@@ -7,7 +7,7 @@ Reviewer: the independent QA role; no application fixes were made by this role.
 
 - Application: `6c17878b0239ddab892df736a511f2cbf18df702`.
 - Additional acceptance assertions: `88843001e13719c4575bc58b23627fbf46c63254`.
-- [Verified final CI run 39357459459](https://github.com/maksatworkspace-sudo/studylist/actions/runs/39357459459)
+- [Verified final CI run 39357459459](https://github.com/Kulynym/INF316/actions/runs/39357459459)
   completed SUCCESS. QA independently read its actual job status and logs.
 - Typecheck, build and contract gate passed. Unit invocation: **81 passed,
   21 live-HTTP cases skipped**; those same HTTP cases ran in the strict phase:

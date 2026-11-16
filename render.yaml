@@ -9,7 +9,7 @@ services:
     name: maxball
     runtime: image
     image:
-      url: ghcr.io/maksatworkspace-sudo/studylist:latest
+      url: ghcr.io/kulynym/inf316:latest
     plan: free
     region: frankfurt
     healthCheckPath: /api/health

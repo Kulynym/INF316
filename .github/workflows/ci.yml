@@ -20,8 +20,6 @@ concurrency:
 permissions:
   contents: read
 
-env:
-  IMAGE: ghcr.io/${{ github.repository }}
 
 jobs:
   unit:
@@ -153,6 +151,8 @@ jobs:
       packages: write
     steps:
       - uses: actions/checkout@v7.0.1
+      # Image names must be lowercase; the repository is Kulynym/INF316.
+      - run: echo "IMAGE=ghcr.io/${GITHUB_REPOSITORY,,}" >> "$GITHUB_ENV"
       - uses: docker/login-action@v3
         with:
           registry: ghcr.io
@@ -181,7 +181,7 @@ jobs:
         env:
           HOOK: ${{ secrets.RENDER_DEPLOY_HOOK_URL }}
         run: |
-          image=$(jq -rn --arg v "ghcr.io/${GITHUB_REPOSITORY}:${GITHUB_SHA}" '$v|@uri')
+          image=$(jq -rn --arg v "ghcr.io/${GITHUB_REPOSITORY,,}:${GITHUB_SHA}" '$v|@uri')
           curl -fsS -X POST "${HOOK}&imgURL=${image}" -o /dev/null -w "deploy hook HTTP %{http_code}\n"
       - name: Smoke test the deployed version
         env:

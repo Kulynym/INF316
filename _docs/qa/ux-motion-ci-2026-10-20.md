@@ -3,7 +3,7 @@
 Scope: #21, #22, #24 only. Date: 2026-10-20.
 Tested pushed application commit: `6c17878b0239ddab892df736a511f2cbf18df702`.
 
-[GitHub Actions run 39356614841](https://github.com/maksatworkspace-sudo/studylist/actions/runs/39356614841)
+[GitHub Actions run 39356614841](https://github.com/Kulynym/INF316/actions/runs/39356614841)
 completed successfully. This record is written by the orchestrator from actual
 CI output, not a substitute for an independent QA acceptance verdict.
 
