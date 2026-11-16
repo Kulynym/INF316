@@ -1,0 +1,118 @@
+# Manual promotion from DEVELOPMENT (Render) to PRODUCTION (AWS).
+# Actions -> "Promote to production" -> Run workflow. By default it promotes
+# the exact commit development is running now; enter a commit SHA to promote
+# or roll back to another green build. The `production` GitHub environment
+# can require a reviewer's approval before this job runs.
+#
+# Promotion never rebuilds: it re-tags the images CI already tested and
+# published (ghcr.io/<repo>:<sha> and <repo>-oncall:<sha>) as :production and
+# moves the git tag `production`. The AWS instance follows that tag
+# (deploy/aws/autodeploy.sh, every minute) and this job waits until
+# production reports the promoted commit on /api/health.
+name: Promote to production
+
+on:
+  workflow_dispatch:
+    inputs:
+      sha:
+        description: Commit to promote (empty = the commit running in development)
+        required: false
+        default: ""
+      require_development:
+        description: Refuse commits that development is not running (turn off only for a rollback)
+        type: boolean
+        default: true
+
+concurrency:
+  group: promote-production
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+  packages: write
+
+jobs:
+  promote:
+    name: Promote to production (AWS)
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    environment:
+      name: production
+      url: ${{ vars.AWS_APP_URL }}
+    env:
+      DEV_URL: ${{ vars.RENDER_APP_URL }}
+      PROD_URL: ${{ vars.AWS_APP_URL }}
+    steps:
+      - uses: actions/checkout@v7.0.1
+        with:
+          fetch-depth: 0
+      - name: Resolve the commit to promote
+        id: resolve
+        env:
+          INPUT_SHA: ${{ inputs.sha }}
+          REQUIRE_DEV: ${{ inputs.require_development }}
+        run: |
+          dev=""
+          if [ -n "$DEV_URL" ]; then
+            dev=$(curl -fsS --retry 5 --retry-delay 15 "$DEV_URL/api/health" | jq -r .version)
+            echo "development runs $dev"
+          fi
+          sha="${INPUT_SHA:-$dev}"
+          [ -n "$sha" ] || { echo "No commit given and development is not reachable." >&2; exit 1; }
+          sha=$(git rev-parse --verify "${sha}^{commit}")
+          git merge-base --is-ancestor "$sha" origin/main || { echo "$sha is not on main." >&2; exit 1; }
+          if [ "$REQUIRE_DEV" = "true" ] && [ "$sha" != "$dev" ]; then
+            echo "Development runs ${dev:-nothing}, not $sha. Deploy it to development first or turn off require_development for a rollback." >&2
+            exit 1
+          fi
+          echo "sha=$sha" >> "$GITHUB_OUTPUT"
+          echo "image=ghcr.io/${GITHUB_REPOSITORY,,}" >> "$GITHUB_OUTPUT"
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - uses: docker/setup-buildx-action@v3
+      - name: Re-tag the tested images as :production
+        env:
+          SHA: ${{ steps.resolve.outputs.sha }}
+          IMAGE: ${{ steps.resolve.outputs.image }}
+        run: |
+          # Both images exist only if every CI job passed for this commit.
+          for repo in "$IMAGE" "$IMAGE-oncall"; do
+            docker buildx imagetools inspect "$repo:$SHA" >/dev/null
+            docker buildx imagetools create --tag "$repo:production" "$repo:$SHA"
+          done
+      - name: Move the production tag (the AWS instance follows it)
+        env:
+          SHA: ${{ steps.resolve.outputs.sha }}
+        run: |
+          previous=$(git rev-parse -q --verify refs/tags/production || echo none)
+          git tag -f production "$SHA"
+          git push -f origin refs/tags/production
+          echo "previous=$previous" >> "$GITHUB_ENV"
+      - name: Wait until production serves the promoted commit
+        if: env.PROD_URL != ''
+        env:
+          SHA: ${{ steps.resolve.outputs.sha }}
+        run: |
+          for i in $(seq 1 40); do
+            body=$(curl -fsS "$PROD_URL/api/health" || true)
+            echo "$body"
+            if echo "$body" | grep -q "\"version\":\"$SHA\""; then exit 0; fi
+            sleep 15
+          done
+          echo "Production did not report $SHA within 10 minutes" >&2
+          exit 1
+      - name: Summary
+        if: always()
+        env:
+          SHA: ${{ steps.resolve.outputs.sha }}
+        run: |
+          {
+            echo "### Promotion to production"
+            echo "- Commit: \`${SHA:-unresolved}\` (previous production: \`${previous:-unknown}\`)"
+            echo "- Development: ${DEV_URL:-not configured}"
+            echo "- Production: ${PROD_URL:-not configured}"
+            echo "- Roll back: run this workflow again with the previous commit and require_development off."
+          } >> "$GITHUB_STEP_SUMMARY"

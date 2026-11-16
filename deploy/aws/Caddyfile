@@ -3,5 +3,27 @@
 {$SITE_ADDRESS} {
 	encode zstd gzip
 	header Strict-Transport-Security "max-age=31536000"
-	reverse_proxy app:3000
+
+	# Grafana dashboards (read-only without login), served from /grafana.
+	handle /grafana* {
+		reverse_proxy grafana:3000
+	}
+
+	# OTLP/HTTP ingest for the development environment on Render. Only
+	# requests carrying the instance's OTLP_INGEST_TOKEN reach the collector.
+	@otlp {
+		path /otlp/*
+		header Authorization "Bearer {$OTLP_INGEST_TOKEN}"
+	}
+	handle @otlp {
+		uri strip_prefix /otlp
+		reverse_proxy otel-collector:4318
+	}
+	handle /otlp/* {
+		respond 401
+	}
+
+	handle {
+		reverse_proxy app:3000
+	}
 }

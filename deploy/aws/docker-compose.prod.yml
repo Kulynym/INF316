@@ -1,29 +1,39 @@
-# Production stack on the EC2 instance (#35). Caddy terminates HTTPS with an
-# automatic Let's Encrypt certificate for <ip>.sslip.io and proxies to the app;
-# PostgreSQL is reachable only on the internal compose network.
-# Values come from /opt/maxball/.env (generated on the instance).
+# Production stack on the EC2 instance (#35, observability #56-#61).
+# deploy.sh extracts the release's deploy/ directory next to this file and
+# runs it with /opt/maxball/.env (secrets generated on the instance).
+#   Caddy (HTTPS on <ip>.sslip.io) -> app, /grafana -> Grafana,
+#   /otlp -> collector (bearer token; lets the Render development
+#   environment send its telemetry here too).
+# PostgreSQL and the telemetry backends are reachable only inside the network.
 name: maxball
+
+x-limits: &small
+  restart: unless-stopped
+  logging:
+    driver: json-file
+    options: { max-size: "10m", max-file: "3" }
 
 services:
   caddy:
+    <<: *small
     image: caddy:2.10-alpine
-    restart: unless-stopped
     ports:
       - "80:80"
       - "443:443"
       - "443:443/udp"
     environment:
       SITE_ADDRESS: ${SITE_ADDRESS}
+      OTLP_INGEST_TOKEN: ${OTLP_INGEST_TOKEN}
     volumes:
       - ./Caddyfile:/etc/caddy/Caddyfile:ro
       - caddy_data:/data
       - caddy_config:/config
-    depends_on:
-      - app
+    depends_on: [app, grafana]
+    mem_limit: 64m
 
   app:
+    <<: *small
     image: ghcr.io/${IMAGE_REPO}:${APP_TAG:-latest}
-    restart: unless-stopped
     depends_on:
       db:
         condition: service_healthy
@@ -34,13 +44,16 @@ services:
       MAXBALL_DEMO: "1"
       APP_SECRET: ${APP_SECRET}
       APP_URL: https://${SITE_ADDRESS}
+      APP_ENV: production
+      OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4318
+      OTEL_SERVICE_NAME: maxball
     volumes:
       - uploads:/app/.local
     mem_limit: 512m
 
   db:
+    <<: *small
     image: postgres:16-alpine
-    restart: unless-stopped
     environment:
       POSTGRES_USER: maxball
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
@@ -55,8 +68,89 @@ services:
       - pgdata:/var/lib/postgresql/data
     mem_limit: 256m
 
+  otel-collector:
+    <<: *small
+    image: otel/opentelemetry-collector-contrib:0.163.2
+    command: ["--config=/etc/otelcol/config.yaml"]
+    environment:
+      APP_HEALTH_URL: http://app:3000/api/health
+      DEPLOYMENT_ENVIRONMENT: production
+    volumes:
+      - ../observability/otel-collector.yaml:/etc/otelcol/config.yaml:ro
+    mem_limit: 256m
+
+  prometheus:
+    <<: *small
+    image: prom/prometheus:v3.15.1
+    command:
+      - --config.file=/etc/prometheus/prometheus.yml
+      - --storage.tsdb.retention.time=15d
+      - --storage.tsdb.retention.size=2GB
+    volumes:
+      - ../observability/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ../observability/alerts.yml:/etc/prometheus/alerts.yml:ro
+      - prometheus:/prometheus
+    mem_limit: 256m
+
+  alertmanager:
+    <<: *small
+    image: prom/alertmanager:v0.34.2
+    command: ["--config.file=/etc/alertmanager/alertmanager.yml", "--storage.path=/alertmanager"]
+    volumes:
+      - ../observability/alertmanager.yml:/etc/alertmanager/alertmanager.yml:ro
+    mem_limit: 64m
+
+  loki:
+    <<: *small
+    image: grafana/loki:3.7.9
+    command: ["-config.file=/etc/loki/config.yaml"]
+    volumes:
+      - ../observability/loki.yaml:/etc/loki/config.yaml:ro
+      - loki:/loki
+    mem_limit: 256m
+
+  jaeger:
+    <<: *small
+    image: jaegertracing/jaeger:2.22.0
+    mem_limit: 192m
+
+  grafana:
+    <<: *small
+    image: grafana/grafana:13.2.5
+    environment:
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD}
+      GF_AUTH_ANONYMOUS_ENABLED: "true"
+      GF_AUTH_ANONYMOUS_ORG_ROLE: Viewer
+      GF_DASHBOARDS_DEFAULT_HOME_DASHBOARD_PATH: /var/lib/grafana/dashboards/maxball.json
+      GF_ANALYTICS_REPORTING_ENABLED: "false"
+      GF_SERVER_ROOT_URL: https://${SITE_ADDRESS}/grafana/
+      GF_SERVER_SERVE_FROM_SUB_PATH: "true"
+      PROMETHEUS_URL: http://prometheus:9090
+      LOKI_URL: http://loki:3100
+      JAEGER_URL: http://jaeger:16686
+      ALERTMANAGER_URL: http://alertmanager:9093
+      GF_DASHBOARDS_PATH: /var/lib/grafana/dashboards
+    volumes:
+      - ../observability/grafana/provisioning:/etc/grafana/provisioning:ro
+      - ../observability/grafana/dashboards:/var/lib/grafana/dashboards:ro
+      - grafana:/var/lib/grafana
+    mem_limit: 256m
+
+  oncall-agent:
+    <<: *small
+    image: ghcr.io/${IMAGE_REPO}-oncall:${APP_TAG:-latest}
+    environment:
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+      GITHUB_TOKEN: ${ONCALL_GITHUB_TOKEN:-}
+      GITHUB_REPOSITORY: ${GITHUB_REPOSITORY}
+      GRAFANA_PUBLIC_URL: https://${SITE_ADDRESS}/grafana/
+    mem_limit: 128m
+
 volumes:
   pgdata:
   uploads:
   caddy_data:
   caddy_config:
+  prometheus:
+  loki:
+  grafana:

@@ -2,8 +2,10 @@
 # service, as Render does not run compose files itself:
 #   compose "app" -> web service from the GHCR image built by CI
 #   compose "db"  -> Render Postgres (DATABASE_URL over the private network)
-# Free plans only. CI redeploys each green commit through the deploy hook
-# with the commit's image tag (see .github/workflows/ci.yml, deploy-render).
+# Free plans only. This is the DEVELOPMENT environment: CI redeploys each
+# green commit on main through the deploy hook with the commit's image tag
+# (.github/workflows/ci.yml, deploy-development). Production runs on AWS and
+# only changes through the manual promotion workflow (promote.yml).
 services:
   - type: web
     name: maxball
@@ -24,6 +26,14 @@ services:
         value: "1"
       - key: APP_SECRET
         generateValue: true
+      - key: APP_ENV
+        value: development
+      # Optional: send telemetry to the production collector (Caddy /otlp,
+      # see _docs/observability.md). Left empty, telemetry stays off.
+      - key: OTEL_EXPORTER_OTLP_ENDPOINT
+        sync: false
+      - key: OTEL_EXPORTER_OTLP_HEADERS
+        sync: false
       # APP_URL falls back to Render's RENDER_EXTERNAL_URL (Dockerfile CMD).
 
 databases:

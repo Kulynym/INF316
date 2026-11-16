@@ -3,9 +3,11 @@ Description: >-
   MAXBALL EDTECH production stack (issue #35). One free-plan sized EC2
   instance runs Docker Compose: Caddy (automatic HTTPS on an sslip.io name),
   the application image from GHCR and PostgreSQL. Continuous deployment is
-  pull-based: a systemd timer on the instance deploys every commit on main
-  whose image CI has published, so GitHub holds no AWS credentials (the AWS
-  free plan denies IAM OIDC providers). No SSH port is open. A monthly AWS
+  pull-based: a systemd timer on the instance deploys the commit the git tag
+  "production" points at, which only the manual promotion workflow moves, so
+  GitHub holds no AWS credentials (the AWS free plan denies IAM OIDC
+  providers). The OpenTelemetry Collector, Prometheus, Alertmanager, Loki,
+  Jaeger, Grafana and the AI on-call agent run beside the app. No SSH port is open. A monthly AWS
   Budget e-mails the owner before credits burn.
 
 Parameters:
@@ -15,9 +17,11 @@ Parameters:
     Description: owner/name of the public repository whose main branch is deployed.
   InstanceType:
     Type: String
-    Default: t3.micro
+    Default: t3.small
     AllowedValues: [t3.micro, t3.small]
-    Description: Free-plan eligible instance types only.
+    Description: >-
+      Free-plan eligible types only (paid from the free credits). t3.small (2 GiB)
+      runs the app with the observability stack; t3.micro (1 GiB) relies on swap.
   RootVolumeGiB:
     Type: Number
     Default: 20
@@ -30,9 +34,24 @@ Parameters:
     AllowedPattern: "^[^@\\s]+@[^@\\s]+\\.[^@\\s]+$"
   MonthlyBudgetUsd:
     Type: Number
-    Default: 5
+    Default: 20
     MinValue: 1
     Description: Alert threshold for the monthly cost (paid from free credits).
+  AnthropicApiKey:
+    Type: String
+    NoEcho: true
+    Default: ""
+    Description: Optional Claude API key for the AI on-call agent. Without it the agent files raw evidence only.
+  OncallGithubToken:
+    Type: String
+    NoEcho: true
+    Default: ""
+    Description: Optional fine-grained GitHub token (Issues read/write on this repository) so the on-call agent files incident issues.
+  OtlpIngestToken:
+    Type: String
+    NoEcho: true
+    Default: ""
+    Description: Optional bearer token that lets the development environment (Render) send telemetry to /otlp. Generated when empty.
   EnableSessionManager:
     Type: String
     AllowedValues: ["true", "false"]
@@ -126,6 +145,10 @@ Resources:
               echo "APP_SECRET=$(openssl rand -hex 32)"
               echo "APP_SECRET_ROTATED=1"
               echo "GITHUB_REPOSITORY=${GitHubRepository}"
+              echo "GRAFANA_ADMIN_PASSWORD=$(openssl rand -hex 16)"
+              echo "ANTHROPIC_API_KEY=${AnthropicApiKey}"
+              echo "ONCALL_GITHUB_TOKEN=${OncallGithubToken}"
+              echo "OTLP_INGEST_TOKEN=${OtlpIngestToken}"
             } > .env
           fi
           set -x
@@ -192,6 +215,11 @@ Resources:
             - { SubscriptionType: EMAIL, Address: !Ref BudgetEmail }
 
 Outputs:
+  GrafanaUrl:
+    Description: Grafana dashboards of the production environment (read-only without login).
+    Value: !Sub
+      - "https://${Dashed}.sslip.io/grafana/"
+      - Dashed: !Join ["-", !Split [".", !Ref ElasticIP]]
   AppUrl:
     Description: Public HTTPS URL (Caddy + Let's Encrypt on sslip.io). Set as the AWS_APP_URL repository variable.
     Value: !Sub
