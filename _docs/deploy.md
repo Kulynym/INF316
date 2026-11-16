@@ -123,10 +123,13 @@ credentials, but the free plan denies `iam:CreateOpenIDConnectProvider` through 
 control policy (stack event on 2026-11-03: "explicit deny in a service control policy"),
 and long-lived access keys in GitHub are worse practice. Instead
 `maxball-autodeploy.timer` runs [`autodeploy.sh`](../deploy/aws/autodeploy.sh) every
-minute: when `main`'s head has a published `ghcr.io/…:<sha>` image (CI publishes only
-after all tests pass) and it is not running yet, [`deploy.sh`](../deploy/aws/deploy.sh)
-fetches that commit's compose/Caddy files, pulls the image and waits for health. The CI
-job `deploy-aws` then waits until `AWS_APP_URL/api/health` reports the commit SHA.
+minute. Since Assignment 4 the AWS stack is the PRODUCTION environment: the instance runs
+the commit the git tag `production` points at, and only the manual **Promote to
+production** workflow moves that tag (Render is the development environment and gets
+every green commit). [`deploy.sh`](../deploy/aws/deploy.sh) fetches that commit's
+`deploy/` directory, pulls the app and on-call images and waits for health; the
+promotion workflow waits until `AWS_APP_URL/api/health` reports the commit SHA. The
+observability stack runs beside the app — see [observability.md](observability.md).
 
 Owner steps, once (free-plan accounts are pinned to one region; use that region):
 1. CloudFormation → Create stack → With new resources → Upload `deploy/aws/maxball-stack.yaml`.

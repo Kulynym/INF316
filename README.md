@@ -23,6 +23,23 @@ Playwright e2e тесттерін іске қосады, ал `main`-де обр
 Issues: [`deployment`](https://github.com/Kulynym/INF316/issues?q=label%3Adeployment),
 [`e2e-test`](https://github.com/Kulynym/INF316/issues?q=label%3Ae2e-test).
 
+## DevOps және Observability (Assignment 4)
+
+- **Орталар:** development — Render (әр жасыл commit автоматты), production — AWS
+  (тек қолмен: Actions → **Promote to production**).
+- **OpenTelemetry:** метрикалар, трейстер және логтар → Collector → Prometheus / Jaeger / Loki.
+- **Дашборд:** Grafana «MAXBALL application» (production: `https://<aws>/grafana/`).
+- **Алерттер:** метрика өзгергенде 8 ереже (`deploy/observability/alerts.yml`, promtool тесттерімен).
+- **AI on-call:** Alertmanager → [`oncall/agent.ts`](oncall/agent.ts) — Claude метрика, лог және
+  трейстерді зерттеп, GitHub-та `incident` issue ашады.
+
+```sh
+docker compose -f docker-compose.yml -f docker-compose.observability.yml up --build -d --wait
+# Grafana http://localhost:3001 · Jaeger :16686 · Prometheus :9090 · агент :8080/reports
+```
+
+Толық сипаттама: [_docs/observability.md](_docs/observability.md).
+
 ## Жергілікті Іске Қосу
 
 Node.js 24 және npm қажет. Docker міндетті емес.
