@@ -67,7 +67,8 @@ services:
       - "127.0.0.1:3100:3100"
 
   jaeger:
-    image: jaegertracing/jaeger:2.22.0
+    # 2.21 removed the v1 HTTP query API that Grafana and the on-call agent use.
+    image: jaegertracing/jaeger:2.20.0
     restart: unless-stopped
     ports:
       - "127.0.0.1:16686:16686"

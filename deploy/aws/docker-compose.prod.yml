@@ -111,7 +111,8 @@ services:
 
   jaeger:
     <<: *small
-    image: jaegertracing/jaeger:2.22.0
+    # 2.21 removed the v1 HTTP query API that Grafana and the on-call agent use.
+    image: jaegertracing/jaeger:2.20.0
     mem_limit: 192m
 
   grafana:

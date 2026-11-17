@@ -34,7 +34,7 @@ exporters:
     namespace: ""
     send_timestamps: false
     metric_expiration: 30m
-  otlp/jaeger:
+  otlp_grpc/jaeger:
     endpoint: ${env:JAEGER_OTLP_ENDPOINT:-jaeger:4317}
     tls:
       insecure: true
@@ -54,7 +54,7 @@ service:
     traces:
       receivers: [otlp]
       processors: [memory_limiter, batch]
-      exporters: [otlp/jaeger]
+      exporters: [otlp_grpc/jaeger]
     metrics:
       receivers: [otlp, http_check]
       processors: [memory_limiter, transform/environment, batch]
