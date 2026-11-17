@@ -27,7 +27,7 @@ permissions:
 jobs:
   unit:
     name: Unit, contract and database tests
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 20
     services:
       postgres:
@@ -80,7 +80,7 @@ jobs:
 
   browser:
     name: Isolated browser runner (SQLite + mock mode)
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 30
     steps:
       - uses: actions/checkout@v7.0.1
@@ -106,7 +106,7 @@ jobs:
 
   stack:
     name: Integration + E2E on Docker Compose (app + PostgreSQL)
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 40
     env:
       APP_PORT: "3000"
@@ -164,7 +164,7 @@ jobs:
 
   observability:
     name: Observability (OpenTelemetry, dashboard, alert -> AI on-call)
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 40
     env:
       APP_PORT: "3000"
@@ -218,7 +218,7 @@ jobs:
     name: Publish image to GHCR
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     needs: [unit, browser, stack, observability]
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 20
     permissions:
       contents: read
@@ -252,7 +252,7 @@ jobs:
     name: Deploy to development (Render)
     if: github.event_name == 'push' && github.ref == 'refs/heads/main' && vars.RENDER_APP_URL != ''
     needs: publish
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 20
     environment:
       name: development
