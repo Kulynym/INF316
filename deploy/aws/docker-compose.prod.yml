@@ -13,9 +13,18 @@ x-limits: &small
     driver: json-file
     options: { max-size: "10m", max-file: "3" }
 
+# Services that bind-mount files from the release directory. deploy.sh
+# replaces that directory on every deploy, so a container left running would
+# keep the deleted copy (Grafana lost its provisioning this way); the release
+# label changes each deploy and makes Compose recreate them.
+x-config: &config
+  <<: *small
+  labels:
+    maxball.release: "${APP_TAG:-latest}"
+
 services:
   caddy:
-    <<: *small
+    <<: *config
     image: caddy:2.10-alpine
     ports:
       - "80:80"
@@ -69,7 +78,7 @@ services:
     mem_limit: 256m
 
   otel-collector:
-    <<: *small
+    <<: *config
     image: otel/opentelemetry-collector-contrib:0.163.2
     command: ["--config=/etc/otelcol/config.yaml"]
     environment:
@@ -80,7 +89,7 @@ services:
     mem_limit: 256m
 
   prometheus:
-    <<: *small
+    <<: *config
     image: prom/prometheus:v3.15.1
     command:
       - --config.file=/etc/prometheus/prometheus.yml
@@ -93,7 +102,7 @@ services:
     mem_limit: 256m
 
   alertmanager:
-    <<: *small
+    <<: *config
     image: prom/alertmanager:v0.34.2
     command: ["--config.file=/etc/alertmanager/alertmanager.yml", "--storage.path=/alertmanager"]
     volumes:
@@ -101,7 +110,7 @@ services:
     mem_limit: 64m
 
   loki:
-    <<: *small
+    <<: *config
     image: grafana/loki:3.7.9
     command: ["-config.file=/etc/loki/config.yaml"]
     volumes:
@@ -116,7 +125,7 @@ services:
     mem_limit: 192m
 
   grafana:
-    <<: *small
+    <<: *config
     image: grafana/grafana:13.2.5
     environment:
       GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD}
